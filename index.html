@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>دليل السائق للمناطق ذات الطلب العالي - عمان</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚗 دليل السائق - عمان</h1>
+            <p class="subtitle">اعثر على أقرب منطقة ذات طلب عالي</p>
+        </header>
+
+        <div class="debug-panel" id="debug-panel">
+            <h3>🔍 لوحة التشخيص</h3>
+            <div class="debug-info">
+                <div class="debug-item">
+                    <span class="debug-label">حالة التطبيق:</span>
+                    <span id="app-state" class="debug-value">تهيئة</span>
+                </div>
+                <div class="debug-item">
+                    <span class="debug-label">حالة البيانات:</span>
+                    <span id="data-state" class="debug-value">لم يتم التحميل</span>
+                </div>
+                <div class="debug-item">
+                    <span class="debug-label">حالة الخريطة:</span>
+                    <span id="map-state" class="debug-value">لم يتم التهيئة</span>
+                </div>
+                <div class="debug-item">
+                    <span class="debug-label">حالة الموقع:</span>
+                    <span id="location-state" class="debug-value">غير محدد</span>
+                </div>
+                <div class="debug-item">
+                    <span class="debug-label">الاتصال:</span>
+                    <span id="network-state" class="debug-value">فحص...</span>
+                </div>
+            </div>
+            <button id="force-reload" class="btn btn-warning">🔄 إعادة تحميل قسري</button>
+        </div>
+
+        <div class="status-section">
+            <div class="status-card">
+                <div class="status-item">
+                    <span class="label">موقعك الحالي:</span>
+                    <span id="current-area" class="value">جاري التحديد...</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">المنطقة المقترحة:</span>
+                    <span id="suggested-zone" class="value">جاري البحث...</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">وضع الطلب:</span>
+                    <span id="demand-mode" class="value"></span>
+                </div>
+                <div class="status-item">
+                    <span class="label">حالة النظام:</span>
+                    <span id="system-status" class="value status-ready">جاري التحميل...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="refresh-location" class="btn btn-primary">
+                📍 تحديث الموقع
+            </button>
+            <button id="start-app" class="btn btn-success">
+                🚀 تشغيل التطبيق
+            </button>
+            <button id="test-data" class="btn btn-info">
+                🧪 اختبار البيانات
+            </button>
+            <label class="toggle-container">
+                <input type="checkbox" id="high-demand-only">
+                <span class="toggle-text">عرض المناطق ذات الطلب العالي فقط</span>
+            </label>
+        </div>
+
+        <div id="map" class="map-container"></div>
+
+        <div class="zones-section">
+            <h2>المناطق المتاحة</h2>
+            <div id="loading" class="loading">
+                <div class="loading-spinner"></div>
+                <span>جاري تحميل البيانات...</span>
+            </div>
+            <div id="execution-log" class="execution-log"></div>
+            <ul id="zone-list" class="zone-list"></ul>
+        </div>
+
+        <div id="toast" class="toast"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

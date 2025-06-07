@@ -1,0 +1,107 @@
+[
+  {
+    "name": "الصويفية",
+    "lat": 31.9552,
+    "lng": 35.8617,
+    "density_peak": 9,
+    "density_off": 4
+  },
+  {
+    "name": "عبدون",
+    "lat": 31.9539,
+    "lng": 35.8793,
+    "density_peak": 8,
+    "density_off": 3
+  },
+  {
+    "name": "الدوار السابع",
+    "lat": 31.9515,
+    "lng": 35.9239,
+    "density_peak": 7,
+    "density_off": 5
+  },
+  {
+    "name": "جبل عمان",
+    "lat": 31.9515,
+    "lng": 35.9239,
+    "density_peak": 6,
+    "density_off": 3
+  },
+  {
+    "name": "الشميساني",
+    "lat": 31.9613,
+    "lng": 35.8907,
+    "density_peak": 8,
+    "density_off": 4
+  },
+  {
+    "name": "تلاع العلي",
+    "lat": 31.9723,
+    "lng": 35.837,
+    "density_peak": 7,
+    "density_off": 2
+  },
+  {
+    "name": "مرج الحمام",
+    "lat": 31.8629,
+    "lng": 35.8564,
+    "density_peak": 6,
+    "density_off": 4
+  },
+  {
+    "name": "الجبيهة",
+    "lat": 32.0108,
+    "lng": 35.8728,
+    "density_peak": 5,
+    "density_off": 3
+  },
+  {
+    "name": "خلدا",
+    "lat": 31.9723,
+    "lng": 35.837,
+    "density_peak": 6,
+    "density_off": 3
+  },
+  {
+    "name": "الجامعة الأردنية",
+    "lat": 32.0108,
+    "lng": 35.8728,
+    "density_peak": 7,
+    "density_off": 2
+  },
+  {
+    "name": "دير غبار",
+    "lat": 31.8629,
+    "lng": 35.8564,
+    "density_peak": 5,
+    "density_off": 4
+  },
+  {
+    "name": "الرابية",
+    "lat": 31.9723,
+    "lng": 35.837,
+    "density_peak": 6,
+    "density_off": 3
+  },
+  {
+    "name": "طبربور",
+    "lat": 32.0108,
+    "lng": 35.8728,
+    "density_peak": 4,
+    "density_off": 2
+  },
+  {
+    "name": "ماركا",
+    "lat": 31.8629,
+    "lng": 35.8564,
+    "density_peak": 5,
+    "density_off": 3
+  },
+  {
+    "name": "الزرقاء الجديدة",
+    "lat": 32.0726,
+    "lng": 36.0881,
+    "density_peak": 6,
+    "density_off": 4
+  }
+]

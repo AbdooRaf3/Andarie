@@ -18,6 +18,11 @@ class AmmanDriverGuide {
       events: false,
       demand: false,
     }
+    this.locationUpdateInterval = null
+    this.locationAccuracyThreshold = 100 // meters
+    this.reverseGeocodingEnabled = true
+    this.locationHistory = []
+    this.maxLocationHistorySize = 5
 
     this.logExecution("🚀 System initialized", "info")
     this.updateDebugState("app-state", "تهيئة")
@@ -136,9 +141,12 @@ class AmmanDriverGuide {
       // Hide loading indicator
       this.hideLoading()
 
+      // Load location history from localStorage if available
+      this.loadLocationHistory()
+
       // Auto-start geolocation after initialization
       setTimeout(() => {
-        this.getCurrentLocationWithRetry()
+        this.startLocationTracking()
       }, 1000)
     } catch (error) {
       this.logExecution(`❌ Initialization error: ${error.message}`, "error")
@@ -224,18 +232,56 @@ class AmmanDriverGuide {
 
     const requiredFields = ["name", "lat", "lng", "density_peak", "density_off"]
     let validZones = 0
+    let invalidZones = 0
 
+    // Validate each zone has required fields and coordinates are within valid range
     this.zones = this.zones.filter((zone) => {
-      const isValid = requiredFields.every((field) => zone.hasOwnProperty(field))
+      // Check required fields
+      const hasRequiredFields = requiredFields.every((field) => zone.hasOwnProperty(field))
+
+      // Check coordinates are valid
+      const hasValidCoordinates =
+        typeof zone.lat === "number" &&
+        typeof zone.lng === "number" &&
+        zone.lat >= -90 &&
+        zone.lat <= 90 &&
+        zone.lng >= -180 &&
+        zone.lng <= 180
+
+      // Check density values are valid numbers
+      const hasValidDensity =
+        typeof zone.density_peak === "number" &&
+        typeof zone.density_off === "number" &&
+        zone.density_peak >= 0 &&
+        zone.density_off >= 0
+
+      const isValid = hasRequiredFields && hasValidCoordinates && hasValidDensity
+
       if (isValid) {
         validZones++
       } else {
+        invalidZones++
         this.logExecution(`⚠️ Invalid zone data: ${JSON.stringify(zone)}`, "warning")
       }
+
       return isValid
     })
 
-    this.logExecution(`✅ Validated ${validZones} zones`, "success")
+    // Check for duplicate coordinates
+    const coordinateMap = new Map()
+    this.zones.forEach((zone) => {
+      const coordKey = `${zone.lat.toFixed(6)},${zone.lng.toFixed(6)}`
+      if (coordinateMap.has(coordKey)) {
+        this.logExecution(
+          `⚠️ Duplicate coordinates detected: ${zone.name} and ${coordinateMap.get(coordKey)}`,
+          "warning",
+        )
+      } else {
+        coordinateMap.set(coordKey, zone.name)
+      }
+    })
+
+    this.logExecution(`✅ Validated ${validZones} zones (${invalidZones} invalid zones removed)`, "success")
   }
 
   getSampleZones() {
@@ -320,7 +366,13 @@ class AmmanDriverGuide {
         }
 
         // Initialize new map
-        this.map = L.map("map").setView([31.9539, 35.9106], 12)
+        this.map = L.map("map", {
+          zoomControl: true,
+          attributionControl: true,
+          minZoom: 10,
+          maxZoom: 18,
+        }).setView([31.9539, 35.9106], 12)
+
         this.logExecution("✅ Map container created", "success")
 
         // Use OpenStreetMap as primary tile layer
@@ -335,7 +387,6 @@ class AmmanDriverGuide {
         osmTileLayer.on("load", () => {
           this.logExecution("✅ Map tiles loaded successfully", "success")
           this.updateDebugState("map-state", "تم التحميل")
-          resolve()
         })
 
         osmTileLayer.on("tileerror", (error) => {
@@ -349,14 +400,34 @@ class AmmanDriverGuide {
           maxZoom: 19,
         })
 
+        // Add satellite view
+        const satelliteTileLayer = L.tileLayer(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          {
+            attribution:
+              "Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community",
+            maxZoom: 19,
+          },
+        )
+
         // Add layer control
         const baseMaps = {
           "الخريطة العادية": osmTileLayer,
           "الخريطة الداكنة": darkTileLayer,
+          "صور الأقمار الصناعية": satelliteTileLayer,
         }
 
         L.control.layers(baseMaps).addTo(this.map)
         this.logExecution("✅ Map layer control added", "success")
+
+        // Add scale control
+        L.control
+          .scale({
+            imperial: false,
+            metric: true,
+            position: "bottomleft",
+          })
+          .addTo(this.map)
 
         // Add map event handlers
         this.map.on("click", (e) => {
@@ -369,6 +440,12 @@ class AmmanDriverGuide {
           this.logExecution(`🔍 Map zoom level: ${this.map.getZoom()}`, "info")
         })
 
+        this.map.on("moveend", () => {
+          const center = this.map.getCenter()
+          this.logExecution(`🗺️ Map center: ${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}`, "info")
+        })
+
+        // Add zone markers
         this.updateZoneMarkers()
         this.logExecution("✅ Map initialization complete", "success")
 
@@ -431,6 +508,22 @@ class AmmanDriverGuide {
       this.showToast("انقطع الاتصال بالإنترنت", "warning")
     })
 
+    // Handle page visibility changes
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        this.logExecution("📱 App is visible, resuming location updates", "info")
+        this.startLocationTracking()
+      } else {
+        this.logExecution("📱 App is hidden, pausing location updates", "info")
+        this.stopLocationTracking()
+      }
+    })
+
+    // Handle before unload to save location history
+    window.addEventListener("beforeunload", () => {
+      this.saveLocationHistory()
+    })
+
     this.logExecution("✅ Event listeners configured", "success")
   }
 
@@ -464,6 +557,9 @@ class AmmanDriverGuide {
     this.updateDebugState("app-state", "إعادة تحميل قسري")
 
     try {
+      // Stop location tracking
+      this.stopLocationTracking()
+
       // Clear any existing timeouts
       if (this.loadingTimeout) {
         clearTimeout(this.loadingTimeout)
@@ -622,11 +718,138 @@ class AmmanDriverGuide {
       this.logExecution("🧪 Step 8: Running validation tests...", "info")
       this.runValidationTests()
 
+      // Start continuous location tracking
+      this.startLocationTracking()
+
       this.logExecution("🎉 Full execution completed successfully!", "success")
       this.showToast("تم تشغيل التطبيق بنجاح!", "success")
     } catch (error) {
       this.logExecution(`❌ Execution error: ${error.message}`, "error")
       this.showToast("خطأ في تشغيل التطبيق", "error")
+    }
+  }
+
+  startLocationTracking() {
+    // Clear any existing tracking
+    this.stopLocationTracking()
+
+    this.logExecution("🔄 Starting continuous location tracking...", "info")
+
+    // Start watching position
+    if (navigator.geolocation) {
+      this.geolocationWatchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const newLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            timestamp: position.timestamp,
+          }
+
+          // Only update if accuracy is good enough
+          if (newLocation.accuracy <= this.locationAccuracyThreshold) {
+            // Check if location has changed significantly
+            if (!this.currentLocation || this.hasLocationChangedSignificantly(this.currentLocation, newLocation)) {
+              this.logExecution(
+                `📍 Location updated: ${newLocation.lat.toFixed(6)}, ${newLocation.lng.toFixed(6)} (accuracy: ${newLocation.accuracy.toFixed(1)}m)`,
+                "info",
+              )
+
+              // Add to location history
+              this.addToLocationHistory(newLocation)
+
+              // Update current location
+              this.currentLocation = newLocation
+
+              // Update UI and map
+              this.updateCurrentLocationOnMap()
+              this.updateCurrentArea()
+              this.updateSuggestedZone()
+              this.updateZoneList()
+            }
+          } else {
+            this.logExecution(
+              `⚠️ Location accuracy too low: ${newLocation.accuracy.toFixed(1)}m (threshold: ${this.locationAccuracyThreshold}m)`,
+              "warning",
+            )
+          }
+        },
+        (error) => {
+          this.logExecution(`❌ Continuous location tracking error: ${error.message}`, "error")
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 60000, // 1 minute
+        },
+      )
+
+      // Also set up an interval to periodically refresh location
+      this.locationUpdateInterval = setInterval(() => {
+        this.getCurrentLocationWithRetry(1) // Single attempt
+      }, 60000) // Every minute
+    }
+  }
+
+  stopLocationTracking() {
+    // Clear watch position
+    if (this.geolocationWatchId !== null) {
+      navigator.geolocation.clearWatch(this.geolocationWatchId)
+      this.geolocationWatchId = null
+      this.logExecution("🛑 Continuous location tracking stopped", "info")
+    }
+
+    // Clear interval
+    if (this.locationUpdateInterval) {
+      clearInterval(this.locationUpdateInterval)
+      this.locationUpdateInterval = null
+    }
+  }
+
+  hasLocationChangedSignificantly(oldLocation, newLocation) {
+    // Calculate distance between old and new locations
+    const distance = this.haversineDistance(oldLocation.lat, oldLocation.lng, newLocation.lat, newLocation.lng)
+
+    // Consider significant if moved more than accuracy radius or more than 50 meters
+    const significantDistance = Math.max(newLocation.accuracy, 50)
+
+    return distance > significantDistance
+  }
+
+  addToLocationHistory(location) {
+    // Add to history
+    this.locationHistory.unshift({
+      ...location,
+      timestamp: Date.now(),
+    })
+
+    // Trim history to max size
+    if (this.locationHistory.length > this.maxLocationHistorySize) {
+      this.locationHistory = this.locationHistory.slice(0, this.maxLocationHistorySize)
+    }
+  }
+
+  saveLocationHistory() {
+    try {
+      if (window.localStorage) {
+        localStorage.setItem("locationHistory", JSON.stringify(this.locationHistory))
+      }
+    } catch (error) {
+      this.logExecution(`⚠️ Failed to save location history: ${error.message}`, "warning")
+    }
+  }
+
+  loadLocationHistory() {
+    try {
+      if (window.localStorage) {
+        const savedHistory = localStorage.getItem("locationHistory")
+        if (savedHistory) {
+          this.locationHistory = JSON.parse(savedHistory)
+          this.logExecution(`📍 Loaded ${this.locationHistory.length} location history entries`, "info")
+        }
+      }
+    } catch (error) {
+      this.logExecution(`⚠️ Failed to load location history: ${error.message}`, "warning")
     }
   }
 
@@ -644,9 +867,15 @@ class AmmanDriverGuide {
         .then((location) => {
           this.logExecution(`✅ Location acquired on attempt ${attempts}`, "success")
           this.updateDebugState("location-state", "تم التحديد")
+
+          // Add to location history
+          this.addToLocationHistory(location)
+
+          // Update UI
           this.updateCurrentArea()
           this.updateSuggestedZone()
           this.updateZoneList()
+
           this.showToast("تم تحديد موقعك بنجاح", "success")
         })
         .catch((error) => {
@@ -689,31 +918,65 @@ class AmmanDriverGuide {
       const options = {
         enableHighAccuracy: true,
         timeout: 15000,
-        maximumAge: 300000,
+        maximumAge: 60000, // 1 minute
       }
 
       this.logExecution(`📍 Geolocation options: ${JSON.stringify(options)}`, "info")
 
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          this.currentLocation = {
+          const location = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
             accuracy: position.coords.accuracy,
             timestamp: position.timestamp,
+            altitude: position.coords.altitude,
+            altitudeAccuracy: position.coords.altitudeAccuracy,
+            heading: position.coords.heading,
+            speed: position.coords.speed,
           }
 
+          this.logExecution(`✅ Location acquired: ${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`, "success")
           this.logExecution(
-            `✅ Location acquired: ${this.currentLocation.lat.toFixed(6)}, ${this.currentLocation.lng.toFixed(6)}`,
-            "success",
-          )
-          this.logExecution(
-            `📍 Accuracy: ${this.currentLocation.accuracy}m, Timestamp: ${new Date(this.currentLocation.timestamp).toLocaleTimeString()}`,
+            `📍 Accuracy: ${location.accuracy}m, Timestamp: ${new Date(location.timestamp).toLocaleTimeString()}`,
             "info",
           )
 
+          // Additional location details for debugging
+          if (this.debugMode) {
+            const details = []
+            if (location.altitude !== null) details.push(`Altitude: ${location.altitude.toFixed(1)}m`)
+            if (location.altitudeAccuracy !== null)
+              details.push(`Alt. Accuracy: ${location.altitudeAccuracy.toFixed(1)}m`)
+            if (location.heading !== null) details.push(`Heading: ${location.heading.toFixed(1)}°`)
+            if (location.speed !== null) details.push(`Speed: ${(location.speed * 3.6).toFixed(1)} km/h`)
+
+            if (details.length > 0) {
+              this.logExecution(`📍 Additional location data: ${details.join(", ")}`, "info")
+            }
+          }
+
+          this.currentLocation = location
           this.updateCurrentLocationOnMap()
-          resolve(this.currentLocation)
+
+          // Perform reverse geocoding if enabled
+          if (this.reverseGeocodingEnabled) {
+            this.performReverseGeocoding(location)
+              .then((addressInfo) => {
+                if (addressInfo) {
+                  location.addressInfo = addressInfo
+                  this.logExecution(`📍 Address: ${addressInfo.display_name}`, "info")
+                }
+              })
+              .catch((error) => {
+                this.logExecution(`⚠️ Reverse geocoding failed: ${error.message}`, "warning")
+              })
+              .finally(() => {
+                resolve(location)
+              })
+          } else {
+            resolve(location)
+          }
         },
         (error) => {
           let message = "Failed to get location"
@@ -749,19 +1012,55 @@ class AmmanDriverGuide {
     })
   }
 
+  async performReverseGeocoding(location) {
+    try {
+      // Use Nominatim for reverse geocoding
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&zoom=18&addressdetails=1`
+
+      const response = await fetch(url, {
+        headers: {
+          "Accept-Language": "ar",
+          "User-Agent": "AmmanDriverGuide/1.0",
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      this.logExecution(`⚠️ Reverse geocoding error: ${error.message}`, "warning")
+      return null
+    }
+  }
+
   handleLocationFailure(error) {
     this.logExecution("🔧 Handling location failure...", "info")
 
-    const fallbackLocation = {
-      lat: 31.9539,
-      lng: 35.9106,
-      accuracy: null,
-      timestamp: Date.now(),
-      isFallback: true,
+    // Check if we have a recent location in history before using fallback
+    const recentLocation = this.getRecentLocationFromHistory()
+
+    if (recentLocation) {
+      this.logExecution("📍 Using recent location from history", "info")
+      this.currentLocation = {
+        ...recentLocation,
+        isHistorical: true,
+      }
+    } else {
+      // Use fallback location (center of Amman)
+      const fallbackLocation = {
+        lat: 31.9539,
+        lng: 35.9106,
+        accuracy: null,
+        timestamp: Date.now(),
+        isFallback: true,
+      }
+
+      this.currentLocation = fallbackLocation
+      this.logExecution("📍 Using fallback location (Amman center)", "warning")
     }
 
-    this.currentLocation = fallbackLocation
-    this.logExecution("📍 Using fallback location (Amman center)", "warning")
     this.updateCurrentLocationOnMap()
 
     let userMessage = "فشل في تحديد الموقع"
@@ -783,6 +1082,25 @@ class AmmanDriverGuide {
     this.updateCurrentArea()
     this.updateSuggestedZone()
     this.updateZoneList()
+  }
+
+  getRecentLocationFromHistory() {
+    // Check if we have any location history
+    if (this.locationHistory.length === 0) {
+      return null
+    }
+
+    // Get most recent location
+    const mostRecent = this.locationHistory[0]
+
+    // Check if it's recent enough (within last 30 minutes)
+    const thirtyMinutesAgo = Date.now() - 30 * 60 * 1000
+
+    if (mostRecent.timestamp > thirtyMinutesAgo) {
+      return mostRecent
+    }
+
+    return null
   }
 
   getCurrentLocation() {
@@ -809,7 +1127,7 @@ class AmmanDriverGuide {
             zone.lat,
             zone.lng,
           )
-          return { ...zone, distance: distance / 1000 }
+          return { ...zone, distance: distance / 1000 } // Convert to km
         })
         .sort((a, b) => a.distance - b.distance)
 
@@ -855,6 +1173,19 @@ class AmmanDriverGuide {
         name: "Secure context",
         check: () => location.protocol === "https:" || location.hostname === "localhost",
       },
+      {
+        name: "Zone data validity",
+        check: () =>
+          this.zones.every(
+            (zone) =>
+              typeof zone.lat === "number" &&
+              typeof zone.lng === "number" &&
+              zone.lat >= -90 &&
+              zone.lat <= 90 &&
+              zone.lng >= -180 &&
+              zone.lng <= 180,
+          ),
+      },
     ]
 
     tests.forEach((test, index) => {
@@ -880,9 +1211,30 @@ class AmmanDriverGuide {
       this.map.removeLayer(this.currentLocationMarker)
     }
 
-    const markerHtml = this.currentLocation.isFallback ? "📍" : "🎯"
-    const markerClass = this.currentLocation.isFallback ? "fallback-location-marker" : "current-location-marker"
+    // Determine marker type based on location source
+    let markerHtml, markerClass, popupContent
 
+    if (this.currentLocation.isFallback) {
+      markerHtml = "📍"
+      markerClass = "fallback-location-marker"
+      popupContent = "موقع افتراضي (وسط عمان)"
+    } else if (this.currentLocation.isHistorical) {
+      markerHtml = "⏱️"
+      markerClass = "historical-location-marker"
+      const timeAgo = this.getTimeAgo(this.currentLocation.timestamp)
+      popupContent = `موقع سابق (منذ ${timeAgo})`
+    } else {
+      markerHtml = "🎯"
+      markerClass = "current-location-marker"
+      popupContent = `موقعك الحالي<br>دقة: ${this.currentLocation.accuracy ? Math.round(this.currentLocation.accuracy) + "م" : "غير محدد"}`
+
+      // Add address if available
+      if (this.currentLocation.addressInfo) {
+        popupContent += `<br>${this.currentLocation.addressInfo.display_name}`
+      }
+    }
+
+    // Create marker with accuracy circle
     const currentIcon = L.divIcon({
       className: markerClass,
       iconSize: [20, 20],
@@ -893,13 +1245,42 @@ class AmmanDriverGuide {
       icon: currentIcon,
     }).addTo(this.map)
 
-    const popupContent = this.currentLocation.isFallback
-      ? "موقع افتراضي (وسط عمان)"
-      : `موقعك الحالي<br>دقة: ${this.currentLocation.accuracy ? Math.round(this.currentLocation.accuracy) + "م" : "غير محدد"}`
+    // Add accuracy circle if available
+    if (this.currentLocation.accuracy && !this.currentLocation.isFallback) {
+      const accuracyCircle = L.circle([this.currentLocation.lat, this.currentLocation.lng], {
+        radius: this.currentLocation.accuracy,
+        weight: 1,
+        color: "#4285F4",
+        fillColor: "#4285F4",
+        fillOpacity: 0.15,
+      }).addTo(this.map)
+
+      // Store reference to remove later
+      this.currentLocationMarker.accuracyCircle = accuracyCircle
+    }
 
     this.currentLocationMarker.bindPopup(popupContent).openPopup()
-    this.map.setView([this.currentLocation.lat, this.currentLocation.lng], 14)
+
+    // Center map on current location with appropriate zoom level
+    const zoomLevel = this.currentLocation.isFallback ? 12 : 15
+    this.map.setView([this.currentLocation.lat, this.currentLocation.lng], zoomLevel)
+
     this.logExecution("📍 Current location marker updated on map", "info")
+  }
+
+  getTimeAgo(timestamp) {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000)
+
+    if (seconds < 60) return `${seconds} ثانية`
+
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) return `${minutes} دقيقة`
+
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `${hours} ساعة`
+
+    const days = Math.floor(hours / 24)
+    return `${days} يوم`
   }
 
   updateCurrentArea() {
@@ -908,14 +1289,52 @@ class AmmanDriverGuide {
       return
     }
 
+    // If we have address info from reverse geocoding, use it
+    if (this.currentLocation.addressInfo) {
+      const address = this.currentLocation.addressInfo
+      let areaName = ""
+
+      // Try to get the most specific area name
+      if (address.address) {
+        if (address.address.suburb) areaName = address.address.suburb
+        else if (address.address.neighbourhood) areaName = address.address.neighbourhood
+        else if (address.address.quarter) areaName = address.address.quarter
+        else if (address.address.city_district) areaName = address.address.city_district
+        else if (address.address.city) areaName = address.address.city
+      }
+
+      if (areaName) {
+        const sourceIndicator = this.getLocationSourceIndicator()
+        document.getElementById("current-area").textContent = `${areaName} ${sourceIndicator}`
+        this.logExecution(`📍 Current area from geocoding: ${areaName}`, "info")
+        return
+      }
+    }
+
+    // Fallback to nearest zone from our data
     const nearestZone = this.findNearestZone(this.currentLocation)
     if (nearestZone) {
-      const areaText = this.currentLocation.isFallback ? `${nearestZone.name} (موقع افتراضي)` : nearestZone.name
-      document.getElementById("current-area").textContent = areaText
-      this.logExecution(`📍 Current area identified: ${nearestZone.name}`, "info")
+      const distance =
+        this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, nearestZone.lat, nearestZone.lng) /
+        1000 // km
+
+      const sourceIndicator = this.getLocationSourceIndicator()
+      const distanceText = distance < 1 ? `(${Math.round(distance * 1000)} م)` : `(${distance.toFixed(1)} كم)`
+
+      document.getElementById("current-area").textContent = `${nearestZone.name} ${distanceText} ${sourceIndicator}`
+      this.logExecution(`📍 Current area identified: ${nearestZone.name} (${distance.toFixed(3)}km)`, "info")
     } else {
       document.getElementById("current-area").textContent = "منطقة غير معروفة"
     }
+  }
+
+  getLocationSourceIndicator() {
+    if (this.currentLocation.isFallback) {
+      return "(موقع افتراضي)"
+    } else if (this.currentLocation.isHistorical) {
+      return "(موقع سابق)"
+    }
+    return ""
   }
 
   updateSuggestedZone() {
@@ -935,23 +1354,55 @@ class AmmanDriverGuide {
       .map((zone) => ({
         ...zone,
         distance: this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, zone.lat, zone.lng),
+        density: this.getCurrentDensity(zone),
       }))
-      .sort((a, b) => a.distance - b.distance)
+      .sort((a, b) => {
+        // First sort by distance
+        const distanceA = a.distance
+        const distanceB = b.distance
+
+        // If distances are similar (within 1km), sort by demand density
+        if (Math.abs(distanceA - distanceB) < 1000) {
+          return b.density - a.density
+        }
+
+        // Otherwise sort by distance
+        return distanceA - distanceB
+      })
 
     const suggested = sortedZones[0]
-    const suggestionText = this.currentLocation.isFallback
-      ? `${suggested.name} (${(suggested.distance / 1000).toFixed(1)} كم - تقديري)`
-      : `${suggested.name} (${(suggested.distance / 1000).toFixed(1)} كم)`
+    const distanceKm = suggested.distance / 1000
+
+    let suggestionText
+    if (distanceKm < 1) {
+      // If less than 1km, show in meters
+      suggestionText = `${suggested.name} (${Math.round(suggested.distance)} م)`
+    } else {
+      suggestionText = `${suggested.name} (${distanceKm.toFixed(1)} كم)`
+    }
+
+    // Add demand level
+    suggestionText += ` - طلب: ${suggested.density}`
+
+    // Add source indicator if using fallback or historical location
+    if (this.currentLocation.isFallback || this.currentLocation.isHistorical) {
+      suggestionText += this.currentLocation.isFallback ? " (تقديري)" : " (بناءً على موقع سابق)"
+    }
 
     document.getElementById("suggested-zone").textContent = suggestionText
-    this.logExecution(`🎯 Suggested zone: ${suggested.name} (${(suggested.distance / 1000).toFixed(1)}km)`, "info")
+    this.logExecution(
+      `🎯 Suggested zone: ${suggested.name} (${distanceKm.toFixed(1)}km, demand: ${suggested.density})`,
+      "info",
+    )
   }
 
   updateDemandMode() {
     const hour = new Date().getHours()
     const isPeakTime = (hour >= 11 && hour <= 14) || (hour >= 17 && hour <= 21)
     const mode = isPeakTime ? "ساعات الذروة" : "ساعات الهدوء"
-    document.getElementById("demand-mode").textContent = mode
+    const currentTime = new Date().toLocaleTimeString("ar-JO", { hour: "2-digit", minute: "2-digit" })
+
+    document.getElementById("demand-mode").textContent = `${mode} (${currentTime})`
     this.logExecution(`⏰ Current demand mode: ${isPeakTime ? "Peak" : "Off-peak"} (${hour}:00)`, "info")
   }
 
@@ -967,24 +1418,52 @@ class AmmanDriverGuide {
       const density = this.getCurrentDensity(zone)
       const demandLevel = this.getDemandLevel(density)
 
-      let markerColor = "#f44336"
-      if (demandLevel === "high") markerColor = "#4CAF50"
-      else if (demandLevel === "medium") markerColor = "#FF9800"
+      let markerColor = "#f44336" // Low demand - red
+      if (demandLevel === "high")
+        markerColor = "#4CAF50" // Green
+      else if (demandLevel === "medium") markerColor = "#FF9800" // Orange
 
+      // Create custom marker with demand level indicator
       const customIcon = L.divIcon({
-        className: "custom-marker",
-        iconSize: [15, 15],
-        html: `<div style="background: ${markerColor}; width: 15px; height: 15px; border-radius: 50%; border: 2px solid white;"></div>`,
+        className: `custom-marker demand-${demandLevel}`,
+        iconSize: [30, 30],
+        html: `
+          <div style="
+            background: ${markerColor}; 
+            width: 30px; 
+            height: 30px; 
+            border-radius: 50%; 
+            border: 2px solid white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+          ">${density}</div>
+        `,
       })
+
+      // Calculate distance if we have current location
+      let distanceText = ""
+      if (this.currentLocation) {
+        const distance =
+          this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, zone.lat, zone.lng) / 1000 // km
+
+        distanceText = distance < 1 ? `المسافة: ${Math.round(distance * 1000)} م` : `المسافة: ${distance.toFixed(1)} كم`
+      }
 
       const marker = L.marker([zone.lat, zone.lng], { icon: customIcon })
         .addTo(this.map)
         .bindPopup(`
           <div style="text-align: center;">
-            <strong>${zone.name}</strong><br>
-            مستوى الطلب: ${density}<br>
+            <strong style="font-size: 16px;">${zone.name}</strong><br>
+            <div style="margin: 8px 0;">
+              مستوى الطلب: <span style="font-weight: bold; color: ${markerColor};">${density}</span>
+              ${distanceText ? `<br>${distanceText}` : ""}
+            </div>
             <button onclick="window.driverGuide.navigateToZone(${zone.lat}, ${zone.lng})" 
-                    style="margin-top: 10px; padding: 5px 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    style="margin-top: 10px; padding: 8px 15px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
               التوجه للمنطقة
             </button>
           </div>
@@ -1002,6 +1481,7 @@ class AmmanDriverGuide {
 
     const filteredZones = this.getFilteredZones()
 
+    // Sort zones by demand level (desc) then by distance (asc)
     const sortedZones = filteredZones
       .map((zone) => ({
         ...zone,
@@ -1012,18 +1492,33 @@ class AmmanDriverGuide {
       }))
       .sort((a, b) => {
         if (b.density !== a.density) {
-          return b.density - a.density
+          return b.density - a.density // Higher demand first
         }
-        return a.distance - b.distance
+        return a.distance - b.distance // Closer first
       })
 
     sortedZones.forEach((zone) => {
       const demandLevel = this.getDemandLevel(zone.density)
       const demandText = this.getDemandText(demandLevel)
 
-      const distanceText = this.currentLocation
-        ? `المسافة: ${(zone.distance / 1000).toFixed(1)} كم${this.currentLocation.isFallback ? " (تقديري)" : ""}`
-        : ""
+      // Format distance text
+      let distanceText = ""
+      if (this.currentLocation) {
+        const distanceKm = zone.distance / 1000
+        if (distanceKm < 1) {
+          // If less than 1km, show in meters
+          distanceText = `المسافة: ${Math.round(zone.distance)} م`
+        } else {
+          distanceText = `المسافة: ${distanceKm.toFixed(1)} كم`
+        }
+
+        // Add source indicator if using fallback or historical location
+        if (this.currentLocation.isFallback) {
+          distanceText += " (تقديري)"
+        } else if (this.currentLocation.isHistorical) {
+          distanceText += " (بناءً على موقع سابق)"
+        }
+      }
 
       const listItem = document.createElement("li")
       listItem.className = `zone-item ${demandLevel}-demand`
@@ -1039,13 +1534,35 @@ class AmmanDriverGuide {
       `
 
       listItem.addEventListener("click", () => {
-        this.navigateToZone(zone.lat, zone.lng)
+        // Highlight on map first
+        this.highlightZoneOnMap(zone)
+
+        // Then navigate after a short delay
+        setTimeout(() => {
+          this.navigateToZone(zone.lat, zone.lng)
+        }, 500)
       })
 
       zoneList.appendChild(listItem)
     })
 
     this.logExecution(`📋 Updated zone list with ${sortedZones.length} zones`, "info")
+  }
+
+  highlightZoneOnMap(zone) {
+    // Find the marker for this zone
+    const marker = this.markers.find((m) => {
+      const position = m.getLatLng()
+      return position.lat === zone.lat && position.lng === zone.lng
+    })
+
+    if (marker) {
+      // Center map on the zone
+      this.map.setView([zone.lat, zone.lng], 15)
+
+      // Open the popup
+      marker.openPopup()
+    }
   }
 
   getFilteredZones() {
@@ -1098,7 +1615,8 @@ class AmmanDriverGuide {
   }
 
   haversineDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3
+    // More accurate implementation of the Haversine formula
+    const R = 6371e3 // Earth's radius in meters
     const φ1 = (lat1 * Math.PI) / 180
     const φ2 = (lat2 * Math.PI) / 180
     const Δφ = ((lat2 - lat1) * Math.PI) / 180

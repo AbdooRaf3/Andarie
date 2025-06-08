@@ -283,6 +283,14 @@ header h1 {
   background: var(--primary-dark);
 }
 
+.btn-secondary {
+  background: var(--secondary);
+}
+
+.btn-secondary:hover {
+  background: #4a0e4e;
+}
+
 .btn-success {
   background: var(--success);
 }
@@ -376,6 +384,88 @@ header h1 {
   margin-bottom: var(--spacing-lg);
   position: relative;
   z-index: 1;
+}
+
+/* MapLibre GL JS specific styles */
+.maplibregl-map {
+  font-family: var(--font-family);
+}
+
+.maplibregl-popup {
+  font-family: var(--font-family);
+  direction: rtl;
+}
+
+.maplibregl-popup-content {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--spacing-md);
+  text-align: center;
+}
+
+.maplibregl-popup-close-button {
+  font-size: 1.2rem;
+  padding: 0.25rem;
+  color: var(--text-secondary);
+}
+
+.maplibregl-ctrl-group {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.maplibregl-ctrl button {
+  border-radius: var(--radius-sm);
+}
+
+/* Custom marker styles for MapLibre */
+.marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid white;
+  color: white;
+  font-weight: bold;
+  font-size: 12px;
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: var(--shadow-md);
+}
+
+.marker:hover {
+  transform: scale(1.2);
+  z-index: 1000;
+}
+
+.marker.current-location {
+  background: var(--primary);
+  font-size: 16px;
+  animation: pulse 2s infinite;
+}
+
+.marker.fallback-location {
+  background: var(--warning);
+  opacity: 0.7;
+}
+
+.marker.historical-location {
+  background: var(--info);
+  opacity: 0.8;
+}
+
+.marker.high-demand {
+  background: var(--success);
+}
+
+.marker.medium-demand {
+  background: var(--warning);
+}
+
+.marker.low-demand {
+  background: var(--error);
 }
 
 /* Zones Section */
@@ -580,41 +670,6 @@ header h1 {
 
 .toast.info {
   border-right: 4px solid var(--info);
-}
-
-/* Map Marker Styles */
-.current-location-marker {
-  font-size: 24px !important;
-  text-align: center;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  animation: pulse 2s infinite;
-  z-index: 1000;
-}
-
-.fallback-location-marker {
-  font-size: 24px !important;
-  text-align: center;
-  opacity: 0.7;
-}
-
-.historical-location-marker {
-  font-size: 24px !important;
-  text-align: center;
-  opacity: 0.8;
-}
-
-.custom-marker {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.3s ease;
-}
-
-.custom-marker:hover {
-  transform: scale(1.2);
-  z-index: 1000;
 }
 
 /* Animations */

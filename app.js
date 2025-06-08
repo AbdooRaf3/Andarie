@@ -1196,7 +1196,10 @@ class AmmanDriverGuide {
 
   async processAccurateLocation(location, resolve) {
     try {
+      // Add to stability buffer for movement detection
       this.addToStabilityBuffer(location)
+
+      // Calculate confidence score
       this.locationConfidenceScore = this.calculateLocationConfidence(location)
 
       this.logExecution(
@@ -1204,36 +1207,52 @@ class AmmanDriverGuide {
         "info",
       )
 
+      // Store as last known accurate location
       this.lastKnownAccurateLocation = { ...location }
+
+      // Update current location immediately
       this.currentLocation = location
 
+      // Update map and basic UI first
+      this.updateCurrentLocationOnMap()
+      this.updateCurrentArea() // Update with basic info first
+
+      // Perform enhanced reverse geocoding in background
       if (this.reverseGeocodingEnabled) {
         try {
+          this.logExecution("🔍 Starting enhanced reverse geocoding...", "info")
           const addressInfo = await this.performEnhancedReverseGeocoding(location)
+
           if (addressInfo) {
             location.addressInfo = addressInfo
-            this.logExecution(`📍 Enhanced address: ${addressInfo.display_name}`, "info")
+            this.currentLocation.addressInfo = addressInfo // Update current location too
 
+            this.logExecution(`📍 Enhanced address received: ${addressInfo.display_name}`, "success")
+
+            // Cache the address
             const cacheKey = `${location.lat.toFixed(6)},${location.lng.toFixed(6)}`
             this.addressCache.set(cacheKey, {
               address: addressInfo,
               timestamp: Date.now(),
             })
+
+            // Update UI again with the new address info
+            this.updateCurrentArea()
+            this.updateSuggestedZone()
           }
         } catch (error) {
           this.logExecution(`⚠️ Enhanced reverse geocoding failed: ${error.message}`, "warning")
         }
       }
 
-      this.updateCurrentLocationOnMap()
-      this.updateCurrentArea()
+      // Final UI updates
       this.updateSuggestedZone()
       this.updateZoneList()
 
       resolve(location)
     } catch (error) {
       this.logExecution(`❌ Error processing accurate location: ${error.message}`, "error")
-      resolve(location)
+      resolve(location) // Still resolve with basic location
     }
   }
 
@@ -1317,6 +1336,7 @@ class AmmanDriverGuide {
 
   async performEnhancedReverseGeocoding(location) {
     try {
+      // Check cache first
       const cacheKey = `${location.lat.toFixed(6)},${location.lng.toFixed(6)}`
       const cached = this.addressCache.get(cacheKey)
 
@@ -1325,13 +1345,13 @@ class AmmanDriverGuide {
         return cached.address
       }
 
-      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&zoom=18&addressdetails=1&accept-language=ar,en`
+      // Use Nominatim for reverse geocoding with higher zoom for more detail
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&zoom=19&addressdetails=1&accept-language=ar,en&namedetails=1`
 
       const response = await fetch(url, {
         headers: {
           "User-Agent": "AmmanDriverGuide/1.0",
         },
-        timeout: 8000,
       })
 
       if (!response.ok) {
@@ -1341,14 +1361,64 @@ class AmmanDriverGuide {
       const data = await response.json()
 
       if (data && data.display_name) {
-        this.logExecution("✅ Nominatim geocoding successful", "success")
+        this.logExecution("✅ Enhanced Nominatim geocoding successful", "success")
+        this.logExecution(`📍 Full address: ${data.display_name}`, "info")
+
+        // Log address components for debugging
+        if (data.address) {
+          this.logExecution(`📍 Address components: ${JSON.stringify(data.address)}`, "info")
+        }
+
         return data
       }
 
       throw new Error("No geocoding data returned")
     } catch (error) {
       this.logExecution(`❌ Enhanced reverse geocoding error: ${error.message}`, "error")
-      return null
+
+      // Fallback to a simpler geocoding service if Nominatim fails
+      try {
+        return await this.fallbackReverseGeocoding(location)
+      } catch (fallbackError) {
+        this.logExecution(`❌ Fallback geocoding also failed: ${fallbackError.message}`, "error")
+        return null
+      }
+    }
+  }
+
+  async fallbackReverseGeocoding(location) {
+    try {
+      // Use a different geocoding service as fallback
+      const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${location.lat}&longitude=${location.lng}&localityLanguage=ar`
+
+      const response = await fetch(url)
+
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data && (data.locality || data.city || data.principalSubdivision)) {
+        // Convert to Nominatim-like format
+        const convertedData = {
+          display_name: data.locality || data.city || data.principalSubdivision || "منطقة غير معروفة",
+          address: {
+            suburb: data.locality,
+            city: data.city,
+            state: data.principalSubdivision,
+            country: data.countryName,
+          },
+        }
+
+        this.logExecution("✅ Fallback geocoding successful", "success")
+        return convertedData
+      }
+
+      throw new Error("No fallback geocoding data")
+    } catch (error) {
+      this.logExecution(`❌ Fallback geocoding error: ${error.message}`, "error")
+      throw error
     }
   }
 
@@ -1466,7 +1536,7 @@ class AmmanDriverGuide {
     if (this.currentLocation.addressInfo) {
       const address = this.currentLocation.addressInfo
       if (address.address) {
-        if (address.address.suburb) areaText = address.address.suburb
+        if (address.suburb) areaText = address.address.suburb
         else if (address.address.neighbourhood) areaText = address.address.neighbourhood
         else if (address.address.quarter) areaText = address.address.quarter
         else if (address.address.city_district) areaText = address.address.city_district
@@ -1675,26 +1745,7 @@ class AmmanDriverGuide {
       })
     }
 
-    // Create popup content
-    let popupContent = `موقعك الحالي<br/>دقة: ${this.currentLocation.accuracy ? Math.round(this.currentLocation.accuracy) + "م" : "غير محدد"}`
-
-    if (this.currentLocation.isFallback) {
-      popupContent = "موقع افتراضي (وسط عمان)"
-    } else if (this.currentLocation.isHistorical) {
-      const timeAgo = this.getTimeAgo(this.currentLocation.timestamp)
-      popupContent = `موقع سابق (منذ ${timeAgo})`
-    }
-
-    if (this.currentLocation.addressInfo) {
-      popupContent += `<br/>${this.currentLocation.addressInfo.display_name}`
-    }
-
-    // Create popup
-    new maplibregl.Popup()
-      .setLngLat([this.currentLocation.lng, this.currentLocation.lat])
-      .setHTML(popupContent)
-      .addTo(this.map)
-
+    // Don't create popup automatically - let the area display handle the text
     // Center map on current location
     const zoomLevel = this.currentLocation.isFallback ? 12 : 15
     this.map.flyTo({
@@ -1749,26 +1800,40 @@ class AmmanDriverGuide {
       return
     }
 
-    if (this.currentLocation.addressInfo) {
-      const address = this.currentLocation.addressInfo
+    // First priority: Use reverse geocoding address if available
+    if (this.currentLocation.addressInfo && this.currentLocation.addressInfo.address) {
+      const address = this.currentLocation.addressInfo.address
       let areaName = ""
 
-      if (address.address) {
-        if (address.address.suburb) areaName = address.address.suburb
-        else if (address.address.neighbourhood) areaName = address.address.neighbourhood
-        else if (address.address.quarter) areaName = address.address.quarter
-        else if (address.address.city_district) areaName = address.address.city_district
-        else if (address.address.city) areaName = address.address.city
+      // Try to get the most specific area name in Arabic
+      if (address.suburb) areaName = address.suburb
+      else if (address.neighbourhood) areaName = address.neighbourhood
+      else if (address.quarter) areaName = address.quarter
+      else if (address.city_district) areaName = address.city_district
+      else if (address.village) areaName = address.village
+      else if (address.town) areaName = address.town
+      else if (address.city) areaName = address.city
+      else if (address.state) areaName = address.state
+
+      // If no specific area found, use the first part of display_name
+      if (!areaName && this.currentLocation.addressInfo.display_name) {
+        const parts = this.currentLocation.addressInfo.display_name.split(",")
+        areaName = parts[0].trim()
       }
 
       if (areaName) {
         const sourceIndicator = this.getLocationSourceIndicator()
-        document.getElementById("current-area").textContent = `${areaName} ${sourceIndicator}`
+        const accuracyText = this.currentLocation.accuracy
+          ? ` [دقة: ${Math.round(this.currentLocation.accuracy)}م]`
+          : ""
+
+        document.getElementById("current-area").textContent = `${areaName}${accuracyText} ${sourceIndicator}`
         this.logExecution(`📍 Current area from geocoding: ${areaName}`, "info")
         return
       }
     }
 
+    // Second priority: Use nearest zone from our data
     const nearestZone = this.findNearestZone(this.currentLocation)
     if (nearestZone) {
       const distance =
@@ -1776,12 +1841,17 @@ class AmmanDriverGuide {
         1000
 
       const sourceIndicator = this.getLocationSourceIndicator()
+      const accuracyText = this.currentLocation.accuracy ? ` [دقة: ${Math.round(this.currentLocation.accuracy)}م]` : ""
       const distanceText = distance < 1 ? `(${Math.round(distance * 1000)} م)` : `(${distance.toFixed(1)} كم)`
 
-      document.getElementById("current-area").textContent = `${nearestZone.name} ${distanceText} ${sourceIndicator}`
+      document.getElementById("current-area").textContent =
+        `${nearestZone.name} ${distanceText}${accuracyText} ${sourceIndicator}`
       this.logExecution(`📍 Current area identified: ${nearestZone.name} (${distance.toFixed(3)}km)`, "info")
     } else {
-      document.getElementById("current-area").textContent = "منطقة غير معروفة"
+      const sourceIndicator = this.getLocationSourceIndicator()
+      const accuracyText = this.currentLocation.accuracy ? ` [دقة: ${Math.round(this.currentLocation.accuracy)}م]` : ""
+
+      document.getElementById("current-area").textContent = `منطقة غير معروفة${accuracyText} ${sourceIndicator}`
     }
   }
 

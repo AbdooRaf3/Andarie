@@ -19,7 +19,20 @@ class AmmanDriverGuide {
       demand: false,
     }
     this.locationUpdateInterval = null
-    this.locationAccuracyThreshold = 100 // meters
+    this.locationAccuracyThreshold = 50 // Reduced from 100 to 50 meters for better accuracy
+    this.highAccuracyThreshold = 20 // High accuracy threshold
+    this.locationUpdateFrequency = 10000 // Update every 10 seconds for real-time tracking
+    this.maxLocationAge = 30000 // 30 seconds max age for cached location
+    this.locationRetryAttempts = 5 // Increased retry attempts
+    this.locationValidationEnabled = true
+    this.realTimeTrackingEnabled = true
+    this.addressCacheTimeout = 300000 // 5 minutes cache for addresses
+    this.addressCache = new Map()
+    this.lastKnownAccurateLocation = null
+    this.locationConfidenceScore = 0
+    this.movementDetectionThreshold = 10 // meters
+    this.locationStabilityBuffer = []
+    this.maxStabilityBufferSize = 5
     this.reverseGeocodingEnabled = true
     this.locationHistory = []
     this.maxLocationHistorySize = 5
@@ -730,13 +743,23 @@ class AmmanDriverGuide {
   }
 
   startLocationTracking() {
-    // Clear any existing tracking
     this.stopLocationTracking()
 
-    this.logExecution("🔄 Starting continuous location tracking...", "info")
+    if (!this.realTimeTrackingEnabled) {
+      this.logExecution("📍 Real-time tracking disabled", "info")
+      return
+    }
 
-    // Start watching position
+    this.logExecution("🔄 Starting enhanced real-time location tracking...", "info")
+
     if (navigator.geolocation) {
+      // Enhanced watch options
+      const watchOptions = {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 5000, // Very fresh locations only
+      }
+
       this.geolocationWatchId = navigator.geolocation.watchPosition(
         (position) => {
           const newLocation = {
@@ -744,50 +767,54 @@ class AmmanDriverGuide {
             lng: position.coords.longitude,
             accuracy: position.coords.accuracy,
             timestamp: position.timestamp,
+            altitude: position.coords.altitude,
+            altitudeAccuracy: position.coords.altitudeAccuracy,
+            heading: position.coords.heading,
+            speed: position.coords.speed,
           }
 
-          // Only update if accuracy is good enough
-          if (newLocation.accuracy <= this.locationAccuracyThreshold) {
-            // Check if location has changed significantly
-            if (!this.currentLocation || this.hasLocationChangedSignificantly(this.currentLocation, newLocation)) {
+          // Enhanced validation and processing
+          if (this.validateLocationAccuracy(newLocation)) {
+            // Check for significant movement
+            const hasMovedSignificantly = this.detectSignificantMovement(newLocation)
+
+            if (hasMovedSignificantly || !this.currentLocation) {
               this.logExecution(
-                `📍 Location updated: ${newLocation.lat.toFixed(6)}, ${newLocation.lng.toFixed(6)} (accuracy: ${newLocation.accuracy.toFixed(1)}m)`,
+                `📍 Real-time update: ${newLocation.lat.toFixed(8)}, ${newLocation.lng.toFixed(8)} (accuracy: ${newLocation.accuracy.toFixed(1)}m, confidence: ${this.calculateLocationConfidence(newLocation).toFixed(1)})`,
                 "info",
               )
+
+              // Process the new location
+              this.processAccurateLocation(newLocation, () => {})
 
               // Add to location history
               this.addToLocationHistory(newLocation)
 
-              // Update current location
-              this.currentLocation = newLocation
-
-              // Update UI and map
-              this.updateCurrentLocationOnMap()
-              this.updateCurrentArea()
-              this.updateSuggestedZone()
-              this.updateZoneList()
+              // Update display with movement indicator
+              this.updateLocationWithMovementIndicator(newLocation)
             }
           } else {
-            this.logExecution(
-              `⚠️ Location accuracy too low: ${newLocation.accuracy.toFixed(1)}m (threshold: ${this.locationAccuracyThreshold}m)`,
-              "warning",
-            )
+            this.logExecution(`⚠️ Real-time location rejected: accuracy ${newLocation.accuracy}m`, "warning")
           }
         },
         (error) => {
-          this.logExecution(`❌ Continuous location tracking error: ${error.message}`, "error")
+          this.logExecution(`❌ Real-time tracking error: ${error.message}`, "error")
+          // Try to recover using last known location
+          this.handleTrackingError(error)
         },
-        {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 60000, // 1 minute
-        },
+        watchOptions,
       )
 
-      // Also set up an interval to periodically refresh location
+      // Set up high-frequency updates
       this.locationUpdateInterval = setInterval(() => {
-        this.getCurrentLocationWithRetry(1) // Single attempt
-      }, 60000) // Every minute
+        if (this.currentLocation) {
+          const age = Date.now() - this.currentLocation.timestamp
+          if (age > this.maxLocationAge) {
+            this.logExecution("🔄 Location too old, requesting fresh location...", "info")
+            this.getCurrentLocationWithRetry(1)
+          }
+        }
+      }, this.locationUpdateFrequency)
     }
   }
 
@@ -897,7 +924,6 @@ class AmmanDriverGuide {
 
   getCurrentLocationPromise() {
     return new Promise((resolve, reject) => {
-      // Check network connectivity
       if (!navigator.onLine) {
         const error = new Error("No internet connection")
         this.logExecution("❌ No internet connection for geolocation", "error")
@@ -912,125 +938,343 @@ class AmmanDriverGuide {
         return
       }
 
-      this.logExecution("📡 Requesting geolocation permission...", "info")
-      this.showToast("جاري تحديد موقعك...", "info")
+      this.logExecution("📡 Requesting high-accuracy geolocation...", "info")
+      this.showToast("جاري تحديد موقعك بدقة عالية...", "info")
 
+      // Enhanced options for maximum accuracy
       const options = {
         enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 60000, // 1 minute
+        timeout: 20000, // Increased timeout
+        maximumAge: this.maxLocationAge,
       }
 
-      this.logExecution(`📍 Geolocation options: ${JSON.stringify(options)}`, "info")
+      this.logExecution(`📍 Enhanced geolocation options: ${JSON.stringify(options)}`, "info")
 
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const location = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            timestamp: position.timestamp,
-            altitude: position.coords.altitude,
-            altitudeAccuracy: position.coords.altitudeAccuracy,
-            heading: position.coords.heading,
-            speed: position.coords.speed,
-          }
+      // Try multiple location requests for better accuracy
+      let bestLocation = null
+      let attempts = 0
+      const maxAttempts = 3
 
-          this.logExecution(`✅ Location acquired: ${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`, "success")
-          this.logExecution(
-            `📍 Accuracy: ${location.accuracy}m, Timestamp: ${new Date(location.timestamp).toLocaleTimeString()}`,
-            "info",
-          )
+      const attemptLocation = () => {
+        attempts++
+        this.logExecution(`📍 High-accuracy attempt ${attempts}/${maxAttempts}`, "info")
 
-          // Additional location details for debugging
-          if (this.debugMode) {
-            const details = []
-            if (location.altitude !== null) details.push(`Altitude: ${location.altitude.toFixed(1)}m`)
-            if (location.altitudeAccuracy !== null)
-              details.push(`Alt. Accuracy: ${location.altitudeAccuracy.toFixed(1)}m`)
-            if (location.heading !== null) details.push(`Heading: ${location.heading.toFixed(1)}°`)
-            if (location.speed !== null) details.push(`Speed: ${(location.speed * 3.6).toFixed(1)} km/h`)
-
-            if (details.length > 0) {
-              this.logExecution(`📍 Additional location data: ${details.join(", ")}`, "info")
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const location = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+              timestamp: position.timestamp,
+              altitude: position.coords.altitude,
+              altitudeAccuracy: position.coords.altitudeAccuracy,
+              heading: position.coords.heading,
+              speed: position.coords.speed,
+              attempt: attempts,
             }
-          }
 
-          this.currentLocation = location
-          this.updateCurrentLocationOnMap()
+            this.logExecution(
+              `✅ Location attempt ${attempts}: ${location.lat.toFixed(8)}, ${location.lng.toFixed(8)} (accuracy: ${location.accuracy.toFixed(1)}m)`,
+              "success",
+            )
 
-          // Perform reverse geocoding if enabled
-          if (this.reverseGeocodingEnabled) {
-            this.performReverseGeocoding(location)
-              .then((addressInfo) => {
-                if (addressInfo) {
-                  location.addressInfo = addressInfo
-                  this.logExecution(`📍 Address: ${addressInfo.display_name}`, "info")
-                }
-              })
-              .catch((error) => {
-                this.logExecution(`⚠️ Reverse geocoding failed: ${error.message}`, "warning")
-              })
-              .finally(() => {
-                resolve(location)
-              })
-          } else {
-            resolve(location)
-          }
-        },
-        (error) => {
-          let message = "Failed to get location"
-          let debugInfo = ""
+            // Validate location accuracy and coordinates
+            if (this.validateLocationAccuracy(location)) {
+              if (!bestLocation || location.accuracy < bestLocation.accuracy) {
+                bestLocation = location
+                this.logExecution(
+                  `🎯 New best location found with accuracy: ${location.accuracy.toFixed(1)}m`,
+                  "success",
+                )
+              }
 
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              message = "Location permission denied"
-              debugInfo = "User denied the request for Geolocation"
-              this.logExecution("❌ Location permission denied by user", "error")
-              break
-            case error.POSITION_UNAVAILABLE:
-              message = "Location unavailable"
-              debugInfo = "Location information is unavailable"
-              this.logExecution("❌ Location position unavailable", "error")
-              break
-            case error.TIMEOUT:
-              message = "Location request timeout"
-              debugInfo = "The request to get user location timed out"
-              this.logExecution("❌ Location request timed out", "error")
-              break
-            default:
-              debugInfo = "An unknown error occurred"
-              this.logExecution(`❌ Unknown geolocation error: ${error.message}`, "error")
-              break
-          }
+              // If we have high accuracy, use it immediately
+              if (location.accuracy <= this.highAccuracyThreshold) {
+                this.logExecution(`🎯 High accuracy achieved: ${location.accuracy.toFixed(1)}m`, "success")
+                this.processAccurateLocation(location, resolve)
+                return
+              }
+            }
 
-          this.logExecution(`📍 Error details: ${debugInfo}`, "error")
-          reject(new Error(message))
-        },
-        options,
-      )
+            // Continue trying if we haven't reached max attempts and don't have good accuracy
+            if (attempts < maxAttempts && (!bestLocation || bestLocation.accuracy > this.locationAccuracyThreshold)) {
+              setTimeout(attemptLocation, 2000) // Wait 2 seconds between attempts
+            } else {
+              // Use the best location we found
+              if (bestLocation) {
+                this.logExecution(
+                  `✅ Using best location from ${attempts} attempts: accuracy ${bestLocation.accuracy.toFixed(1)}m`,
+                  "success",
+                )
+                this.processAccurateLocation(bestLocation, resolve)
+              } else {
+                reject(new Error("No accurate location found"))
+              }
+            }
+          },
+          (error) => {
+            this.logExecution(`❌ Location attempt ${attempts} failed: ${error.message}`, "error")
+
+            if (attempts < maxAttempts) {
+              setTimeout(attemptLocation, 2000)
+            } else {
+              this.handleGeolocationError(error, reject)
+            }
+          },
+          options,
+        )
+      }
+
+      attemptLocation()
     })
   }
 
-  async performReverseGeocoding(location) {
+  handleGeolocationError(error, reject) {
+    let message = "Failed to get location"
+    let debugInfo = ""
+
+    switch (error.code) {
+      case error.PERMISSION_DENIED:
+        message = "Location permission denied"
+        debugInfo = "User denied the request for Geolocation"
+        this.logExecution("❌ Location permission denied by user", "error")
+        break
+      case error.POSITION_UNAVAILABLE:
+        message = "Location unavailable"
+        debugInfo = "Location information is unavailable"
+        this.logExecution("❌ Location position unavailable", "error")
+        break
+      case error.TIMEOUT:
+        message = "Location request timeout"
+        debugInfo = "The request to get user location timed out"
+        this.logExecution("❌ Location request timed out", "error")
+        break
+      default:
+        debugInfo = "An unknown error occurred"
+        this.logExecution(`❌ Unknown geolocation error: ${error.message}`, "error")
+        break
+    }
+
+    this.logExecution(`📍 Error details: ${debugInfo}`, "error")
+    reject(new Error(message))
+  }
+
+  validateLocationAccuracy(location) {
+    // Validate coordinates are within reasonable bounds
+    if (location.lat < -90 || location.lat > 90 || location.lng < -180 || location.lng > 180) {
+      this.logExecution(`❌ Invalid coordinates: ${location.lat}, ${location.lng}`, "error")
+      return false
+    }
+
+    // Check if accuracy is reasonable (not null and not too high)
+    if (location.accuracy === null || location.accuracy > 1000) {
+      this.logExecution(`⚠️ Poor accuracy: ${location.accuracy}m`, "warning")
+      return false
+    }
+
+    // Validate timestamp is recent
+    const now = Date.now()
+    if (now - location.timestamp > this.maxLocationAge) {
+      this.logExecution(`⚠️ Location too old: ${now - location.timestamp}ms`, "warning")
+      return false
+    }
+
+    // Check if location is within Jordan bounds (rough validation)
+    const jordanBounds = {
+      north: 33.5,
+      south: 29.0,
+      east: 39.5,
+      west: 34.5,
+    }
+
+    if (
+      location.lat < jordanBounds.south ||
+      location.lat > jordanBounds.north ||
+      location.lng < jordanBounds.west ||
+      location.lng > jordanBounds.east
+    ) {
+      this.logExecution(`⚠️ Location outside Jordan: ${location.lat}, ${location.lng}`, "warning")
+      // Don't reject, but note it
+    }
+
+    return true
+  }
+
+  async processAccurateLocation(location, resolve) {
     try {
+      // Add to stability buffer for movement detection
+      this.addToStabilityBuffer(location)
+
+      // Calculate confidence score
+      this.locationConfidenceScore = this.calculateLocationConfidence(location)
+
+      this.logExecution(
+        `📍 Processing accurate location - Confidence: ${this.locationConfidenceScore.toFixed(2)}`,
+        "info",
+      )
+
+      // Store as last known accurate location
+      this.lastKnownAccurateLocation = { ...location }
+
+      // Update current location
+      this.currentLocation = location
+
+      // Perform enhanced reverse geocoding
+      if (this.reverseGeocodingEnabled) {
+        try {
+          const addressInfo = await this.performEnhancedReverseGeocoding(location)
+          if (addressInfo) {
+            location.addressInfo = addressInfo
+            this.logExecution(`📍 Enhanced address: ${addressInfo.display_name}`, "info")
+
+            // Cache the address
+            const cacheKey = `${location.lat.toFixed(6)},${location.lng.toFixed(6)}`
+            this.addressCache.set(cacheKey, {
+              address: addressInfo,
+              timestamp: Date.now(),
+            })
+          }
+        } catch (error) {
+          this.logExecution(`⚠️ Enhanced reverse geocoding failed: ${error.message}`, "warning")
+        }
+      }
+
+      // Update map and UI immediately
+      this.updateCurrentLocationOnMap()
+      this.updateCurrentArea()
+      this.updateSuggestedZone()
+      this.updateZoneList()
+
+      resolve(location)
+    } catch (error) {
+      this.logExecution(`❌ Error processing accurate location: ${error.message}`, "error")
+      resolve(location) // Still resolve with basic location
+    }
+  }
+
+  addToStabilityBuffer(location) {
+    this.locationStabilityBuffer.push({
+      lat: location.lat,
+      lng: location.lng,
+      accuracy: location.accuracy,
+      timestamp: location.timestamp,
+    })
+
+    if (this.locationStabilityBuffer.length > this.maxStabilityBufferSize) {
+      this.locationStabilityBuffer.shift()
+    }
+  }
+
+  calculateLocationConfidence(location) {
+    let confidence = 0
+
+    // Accuracy factor (0-40 points)
+    if (location.accuracy <= 5) confidence += 40
+    else if (location.accuracy <= 10) confidence += 35
+    else if (location.accuracy <= 20) confidence += 30
+    else if (location.accuracy <= 50) confidence += 20
+    else confidence += 10
+
+    // Stability factor (0-30 points)
+    if (this.locationStabilityBuffer.length >= 3) {
+      const avgLat =
+        this.locationStabilityBuffer.reduce((sum, loc) => sum + loc.lat, 0) / this.locationStabilityBuffer.length
+      const avgLng =
+        this.locationStabilityBuffer.reduce((sum, loc) => sum + loc.lng, 0) / this.locationStabilityBuffer.length
+
+      const variance =
+        this.locationStabilityBuffer.reduce((sum, loc) => {
+          const distance = this.haversineDistance(loc.lat, loc.lng, avgLat, avgLng)
+          return sum + distance * distance
+        }, 0) / this.locationStabilityBuffer.length
+
+      if (variance < 25)
+        confidence += 30 // Very stable
+      else if (variance < 100)
+        confidence += 20 // Stable
+      else if (variance < 400) confidence += 10 // Somewhat stable
+    }
+
+    // Recency factor (0-20 points)
+    const age = Date.now() - location.timestamp
+    if (age < 5000)
+      confidence += 20 // Very recent
+    else if (age < 15000)
+      confidence += 15 // Recent
+    else if (age < 30000) confidence += 10 // Acceptable
+
+    // Speed consistency factor (0-10 points)
+    if (location.speed !== null && location.speed < 50) {
+      // Reasonable speed
+      confidence += 10
+    }
+
+    return Math.min(confidence, 100) // Cap at 100
+  }
+
+  detectSignificantMovement(newLocation) {
+    if (!this.currentLocation) return true
+
+    const distance = this.haversineDistance(
+      this.currentLocation.lat,
+      this.currentLocation.lng,
+      newLocation.lat,
+      newLocation.lng,
+    )
+
+    // Consider accuracy when determining significant movement
+    const movementThreshold = Math.max(
+      this.movementDetectionThreshold,
+      (this.currentLocation.accuracy + newLocation.accuracy) / 2,
+    )
+
+    const hasMovedSignificantly = distance > movementThreshold
+
+    if (hasMovedSignificantly) {
+      this.logExecution(
+        `🚶 Significant movement detected: ${distance.toFixed(1)}m (threshold: ${movementThreshold.toFixed(1)}m)`,
+        "info",
+      )
+    }
+
+    return hasMovedSignificantly
+  }
+
+  async performEnhancedReverseGeocoding(location) {
+    try {
+      // Check cache first
+      const cacheKey = `${location.lat.toFixed(6)},${location.lng.toFixed(6)}`
+      const cached = this.addressCache.get(cacheKey)
+
+      if (cached && Date.now() - cached.timestamp < this.addressCacheTimeout) {
+        this.logExecution("📍 Using cached address", "info")
+        return cached.address
+      }
+
       // Use Nominatim for reverse geocoding
-      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&zoom=18&addressdetails=1`
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&zoom=18&addressdetails=1&accept-language=ar,en`
 
       const response = await fetch(url, {
         headers: {
-          "Accept-Language": "ar",
           "User-Agent": "AmmanDriverGuide/1.0",
         },
+        timeout: 8000,
       })
 
       if (!response.ok) {
         throw new Error(`HTTP error: ${response.status}`)
       }
 
-      return await response.json()
+      const data = await response.json()
+
+      if (data && data.display_name) {
+        this.logExecution("✅ Nominatim geocoding successful", "success")
+        return data
+      }
+
+      throw new Error("No geocoding data returned")
     } catch (error) {
-      this.logExecution(`⚠️ Reverse geocoding error: ${error.message}`, "warning")
+      this.logExecution(`❌ Enhanced reverse geocoding error: ${error.message}`, "error")
       return null
     }
   }
@@ -1082,6 +1326,136 @@ class AmmanDriverGuide {
     this.updateCurrentArea()
     this.updateSuggestedZone()
     this.updateZoneList()
+  }
+
+  handleTrackingError(error) {
+    this.logExecution("🔧 Handling tracking error...", "info")
+
+    // Try to use last known accurate location
+    if (this.lastKnownAccurateLocation) {
+      const age = Date.now() - this.lastKnownAccurateLocation.timestamp
+
+      if (age < 300000) {
+        // 5 minutes
+        this.logExecution("📍 Using last known accurate location", "info")
+        this.currentLocation = {
+          ...this.lastKnownAccurateLocation,
+          isLastKnown: true,
+        }
+        this.updateCurrentLocationOnMap()
+        this.updateCurrentArea()
+        return
+      }
+    }
+
+    // Fallback to location history
+    const recentLocation = this.getRecentLocationFromHistory()
+    if (recentLocation) {
+      this.logExecution("📍 Using recent location from history", "info")
+      this.currentLocation = {
+        ...recentLocation,
+        isHistorical: true,
+      }
+      this.updateCurrentLocationOnMap()
+      this.updateCurrentArea()
+      return
+    }
+
+    // Last resort: use fallback location
+    this.handleLocationFailure(error)
+  }
+
+  updateLocationWithMovementIndicator(newLocation) {
+    // Calculate movement speed and direction
+    let movementInfo = ""
+
+    if (this.currentLocation && newLocation.speed !== null && newLocation.speed > 0) {
+      const speedKmh = newLocation.speed * 3.6 // Convert m/s to km/h
+      movementInfo = ` (${speedKmh.toFixed(1)} كم/س)`
+
+      if (newLocation.heading !== null) {
+        const direction = this.getDirectionFromHeading(newLocation.heading)
+        movementInfo += ` ${direction}`
+      }
+    }
+
+    // Update current location display with movement info
+    this.updateCurrentAreaWithMovement(movementInfo)
+
+    // Update confidence indicator
+    this.updateLocationConfidenceIndicator()
+  }
+
+  getDirectionFromHeading(heading) {
+    const directions = ["شمال", "شمال شرق", "شرق", "جنوب شرق", "جنوب", "جنوب غرب", "غرب", "شمال غرب"]
+    const index = Math.round(heading / 45) % 8
+    return directions[index]
+  }
+
+  updateCurrentAreaWithMovement(movementInfo) {
+    if (!this.currentLocation) {
+      document.getElementById("current-area").textContent = "غير محدد"
+      return
+    }
+
+    let areaText = ""
+
+    // Use enhanced address if available
+    if (this.currentLocation.addressInfo) {
+      const address = this.currentLocation.addressInfo
+      if (address.address) {
+        if (address.address.suburb) areaText = address.address.suburb
+        else if (address.address.neighbourhood) areaText = address.address.neighbourhood
+        else if (address.address.quarter) areaText = address.address.quarter
+        else if (address.address.city_district) areaText = address.address.city_district
+        else if (address.address.city) areaText = address.address.city
+        else areaText = address.display_name.split(",")[0]
+      }
+    }
+
+    // Fallback to nearest zone
+    if (!areaText) {
+      const nearestZone = this.findNearestZone(this.currentLocation)
+      if (nearestZone) {
+        const distance =
+          this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, nearestZone.lat, nearestZone.lng) /
+          1000
+
+        const distanceText = distance < 1 ? `(${Math.round(distance * 1000)} م)` : `(${distance.toFixed(1)} كم)`
+
+        areaText = `${nearestZone.name} ${distanceText}`
+      } else {
+        areaText = "منطقة غير معروفة"
+      }
+    }
+
+    // Add accuracy and movement info
+    const accuracyText = this.currentLocation.accuracy ? ` [دقة: ${Math.round(this.currentLocation.accuracy)}م]` : ""
+
+    const sourceIndicator = this.getLocationSourceIndicator()
+
+    document.getElementById("current-area").textContent = `${areaText}${movementInfo}${accuracyText} ${sourceIndicator}`
+
+    this.logExecution(`📍 Enhanced area display: ${areaText}${movementInfo}`, "info")
+  }
+
+  updateLocationConfidenceIndicator() {
+    // Add confidence indicator to system status
+    const confidence = this.locationConfidenceScore
+    let confidenceText = ""
+
+    if (confidence >= 80) {
+      confidenceText = "دقة عالية جداً"
+    } else if (confidence >= 60) {
+      confidenceText = "دقة عالية"
+    } else if (confidence >= 40) {
+      confidenceText = "دقة متوسطة"
+    } else {
+      confidenceText = "دقة منخفضة"
+    }
+
+    // Update debug panel with confidence score
+    this.updateDebugState("location-state", `${confidenceText} (${confidence.toFixed(0)}%)`)
   }
 
   getRecentLocationFromHistory() {
@@ -1226,11 +1600,11 @@ class AmmanDriverGuide {
     } else {
       markerHtml = "🎯"
       markerClass = "current-location-marker"
-      popupContent = `موقعك الحالي<br>دقة: ${this.currentLocation.accuracy ? Math.round(this.currentLocation.accuracy) + "م" : "غير محدد"}`
+      popupContent = `موقعك الحالي<br/>دقة: ${this.currentLocation.accuracy ? Math.round(this.currentLocation.accuracy) + "م" : "غير محدد"}`
 
       // Add address if available
       if (this.currentLocation.addressInfo) {
-        popupContent += `<br>${this.currentLocation.addressInfo.display_name}`
+        popupContent += `<br/>${this.currentLocation.addressInfo.display_name}`
       }
     }
 
@@ -1300,6 +1674,7 @@ class AmmanDriverGuide {
         else if (address.address.neighbourhood) areaName = address.address.neighbourhood
         else if (address.address.quarter) areaName = address.address.quarter
         else if (address.address.city_district) areaName = address.address.city_district
+        else if (address.address.city) areaName =
         else if (address.address.city) areaName = address.address.city
       }
 
@@ -1333,6 +1708,9 @@ class AmmanDriverGuide {
       return "(موقع افتراضي)"
     } else if (this.currentLocation.isHistorical) {
       return "(موقع سابق)"
+    } else if (this.currentLocation.isLastKnown) {
+      \
+      return "(آخر موقع معروف)"
     }
     return ""
   }
@@ -1457,10 +1835,10 @@ class AmmanDriverGuide {
         .addTo(this.map)
         .bindPopup(`
           <div style="text-align: center;">
-            <strong style="font-size: 16px;">${zone.name}</strong><br>
+            <strong style="font-size: 16px;">${zone.name}</strong><br/>
             <div style="margin: 8px 0;">
               مستوى الطلب: <span style="font-weight: bold; color: ${markerColor};">${density}</span>
-              ${distanceText ? `<br>${distanceText}` : ""}
+              ${distanceText ? `<br/>${distanceText}` : ""}
             </div>
             <button onclick="window.driverGuide.navigateToZone(${zone.lat}, ${zone.lng})" 
                     style="margin-top: 10px; padding: 8px 15px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">

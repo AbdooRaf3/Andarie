@@ -4,104 +4,299 @@
     "lat": 31.9552,
     "lng": 35.8617,
     "density_peak": 9,
-    "density_off": 4
+    "density_off": 4,
+    "region": "عمان الغربية",
+    "type": "residential_commercial",
+    "landmarks": ["مول الصويفية", "شارع الوكالات"],
+    "traffic_level": "high",
+    "safety_rating": 9
   },
   {
     "name": "عبدون",
     "lat": 31.9539,
     "lng": 35.8793,
     "density_peak": 8,
-    "density_off": 3
+    "density_off": 3,
+    "region": "عمان الغربية",
+    "type": "upscale_residential",
+    "landmarks": ["دوار عبدون", "شارع الرينبو"],
+    "traffic_level": "medium",
+    "safety_rating": 10
   },
   {
     "name": "الدوار السابع",
     "lat": 31.9515,
     "lng": 35.9239,
     "density_peak": 7,
-    "density_off": 5
+    "density_off": 5,
+    "region": "عمان الوسطى",
+    "type": "commercial_hub",
+    "landmarks": ["الدوار السابع", "شارع الجامعة"],
+    "traffic_level": "very_high",
+    "safety_rating": 8
   },
   {
     "name": "جبل عمان",
     "lat": 31.9515,
     "lng": 35.9239,
     "density_peak": 6,
-    "density_off": 3
+    "density_off": 3,
+    "region": "عمان الوسطى",
+    "type": "historic_residential",
+    "landmarks": ["المدرج الروماني", "جبل القلعة"],
+    "traffic_level": "medium",
+    "safety_rating": 9
   },
   {
     "name": "الشميساني",
     "lat": 31.9613,
     "lng": 35.8907,
     "density_peak": 8,
-    "density_off": 4
+    "density_off": 4,
+    "region": "عمان الغربية",
+    "type": "business_district",
+    "landmarks": ["شارع الشميساني", "مجمع الأفنيوز"],
+    "traffic_level": "high",
+    "safety_rating": 9
   },
   {
     "name": "تلاع العلي",
     "lat": 31.9723,
     "lng": 35.837,
     "density_peak": 7,
-    "density_off": 2
+    "density_off": 2,
+    "region": "عمان الغربية",
+    "type": "upscale_residential",
+    "landmarks": ["مول تلاع العلي", "الجامعة الأمريكية"],
+    "traffic_level": "medium",
+    "safety_rating": 10
   },
   {
     "name": "مرج الحمام",
     "lat": 31.8629,
     "lng": 35.8564,
     "density_peak": 6,
-    "density_off": 4
+    "density_off": 4,
+    "region": "عمان الجنوبية",
+    "type": "residential",
+    "landmarks": ["مطار الملكة علياء", "شارع المطار"],
+    "traffic_level": "high",
+    "safety_rating": 8
   },
   {
     "name": "الجبيهة",
     "lat": 32.0108,
     "lng": 35.8728,
     "density_peak": 5,
-    "density_off": 3
+    "density_off": 3,
+    "region": "عمان الشمالية",
+    "type": "university_area",
+    "landmarks": ["الجامعة الأردنية", "مستشفى الجامعة"],
+    "traffic_level": "medium",
+    "safety_rating": 9
   },
   {
     "name": "خلدا",
     "lat": 31.9723,
     "lng": 35.837,
     "density_peak": 6,
-    "density_off": 3
-  },
-  {
-    "name": "الجامعة الأردنية",
-    "lat": 32.0108,
-    "lng": 35.8728,
-    "density_peak": 7,
-    "density_off": 2
-  },
-  {
-    "name": "دير غبار",
-    "lat": 31.8629,
-    "lng": 35.8564,
-    "density_peak": 5,
-    "density_off": 4
+    "density_off": 3,
+    "region": "عمان الغربية",
+    "type": "mixed_residential",
+    "landmarks": ["دوار خلدا", "شارع الأردن"],
+    "traffic_level": "medium",
+    "safety_rating": 9
   },
   {
     "name": "الرابية",
     "lat": 31.9723,
     "lng": 35.837,
     "density_peak": 6,
-    "density_off": 3
+    "density_off": 3,
+    "region": "عمان الشمالية الغربية",
+    "type": "residential",
+    "landmarks": ["مجمع الرابية", "شارع الملكة رانيا"],
+    "traffic_level": "medium",
+    "safety_rating": 9
   },
   {
     "name": "طبربور",
     "lat": 32.0108,
     "lng": 35.8728,
     "density_peak": 4,
-    "density_off": 2
+    "density_off": 2,
+    "region": "عمان الشمالية",
+    "type": "industrial_residential",
+    "landmarks": ["المنطقة الصناعية", "مجمع طبربور"],
+    "traffic_level": "low",
+    "safety_rating": 7
   },
   {
     "name": "ماركا",
     "lat": 31.8629,
     "lng": 35.8564,
     "density_peak": 5,
-    "density_off": 3
+    "density_off": 3,
+    "region": "عمان الشرقية",
+    "type": "residential_commercial",
+    "landmarks": ["مطار ماركا", "شارع ماركا"],
+    "traffic_level": "medium",
+    "safety_rating": 8
   },
   {
     "name": "الزرقاء الجديدة",
     "lat": 32.0726,
     "lng": 36.0881,
     "density_peak": 6,
-    "density_off": 4
+    "density_off": 4,
+    "region": "الزرقاء",
+    "type": "new_development",
+    "landmarks": ["مجمع الزرقاء الجديدة", "الجامعة الهاشمية"],
+    "traffic_level": "medium",
+    "safety_rating": 8
+  },
+  {
+    "name": "دير غبار",
+    "lat": 31.8629,
+    "lng": 35.8564,
+    "density_peak": 5,
+    "density_off": 4,
+    "region": "عمان الجنوبية",
+    "type": "residential",
+    "landmarks": ["مجمع دير غبار", "شارع الحرية"],
+    "traffic_level": "medium",
+    "safety_rating": 8
+  },
+  {
+    "name": "وادي السير",
+    "lat": 31.9234,
+    "lng": 35.8156,
+    "density_peak": 7,
+    "density_off": 3,
+    "region": "عمان الغربية",
+    "type": "residential_commercial",
+    "landmarks": ["مجمع وادي السير", "شارع الملك عبدالله الثاني"],
+    "traffic_level": "high",
+    "safety_rating": 9
+  },
+  {
+    "name": "أبو نصير",
+    "lat": 31.9456,
+    "lng": 35.8234,
+    "density_peak": 6,
+    "density_off": 2,
+    "region": "عمان الغربية",
+    "type": "upscale_residential",
+    "landmarks": ["مجمع أبو نصير", "الأكاديمية الملكية"],
+    "traffic_level": "low",
+    "safety_rating": 10
+  },
+  {
+    "name": "الجندويل",
+    "lat": 31.9789,
+    "lng": 35.8945,
+    "density_peak": 5,
+    "density_off": 3,
+    "region": "عمان الشمالية",
+    "type": "residential",
+    "landmarks": ["مجمع الجندويل", "شارع الملكة نور"],
+    "traffic_level": "medium",
+    "safety_rating": 8
+  },
+  {
+    "name": "البيادر",
+    "lat": 31.9123,
+    "lng": 35.9456,
+    "density_peak": 4,
+    "density_off": 2,
+    "region": "عمان الشرقية",
+    "type": "residential",
+    "landmarks": ["مجمع البيادر", "شارع البيادر"],
+    "traffic_level": "low",
+    "safety_rating": 7
+  },
+  {
+    "name": "النصر",
+    "lat": 31.9345,
+    "lng": 35.9123,
+    "density_peak": 6,
+    "density_off": 4,
+    "region": "عمان الوسطى",
+    "type": "residential_commercial",
+    "landmarks": ["دوار النصر", "شارع النصر"],
+    "traffic_level": "medium",
+    "safety_rating": 8
+  },
+  {
+    "name": "الياسمين",
+    "lat": 31.9567,
+    "lng": 35.8789,
+    "density_peak": 7,
+    "density_off": 3,
+    "region": "عمان الغربية",
+    "type": "residential_commercial",
+    "landmarks": ["مجمع الياسمين", "شارع الياسمين"],
+    "traffic_level": "medium",
+    "safety_rating": 9
+  },
+  {
+    "name": "الكرسي",
+    "lat": 31.9678,
+    "lng": 35.8567,
+    "density_peak": 5,
+    "density_off": 2,
+    "region": "عمان الغربية",
+    "type": "residential",
+    "landmarks": ["مجمع الكرسي", "شارع الكرسي"],
+    "traffic_level": "low",
+    "safety_rating": 9
+  },
+  {
+    "name": "الدوحة",
+    "lat": 31.9234,
+    "lng": 35.8678,
+    "density_peak": 6,
+    "density_off": 3,
+    "region": "عمان الغربية",
+    "type": "residential_commercial",
+    "landmarks": ["مجمع الدوحة", "شارع الدوحة"],
+    "traffic_level": "medium",
+    "safety_rating": 8
+  },
+  {
+    "name": "الصالحية",
+    "lat": 32.0234,
+    "lng": 35.889,
+    "density_peak": 4,
+    "density_off": 2,
+    "region": "عمان الشمالية",
+    "type": "residential",
+    "landmarks": ["مجمع الصالحية", "شارع الصالحية"],
+    "traffic_level": "low",
+    "safety_rating": 8
+  },
+  {
+    "name": "الأشرفية",
+    "lat": 31.9456,
+    "lng": 35.9345,
+    "density_peak": 7,
+    "density_off": 4,
+    "region": "عمان الوسطى",
+    "type": "commercial_residential",
+    "landmarks": ["دوار الأشرفية", "شارع الأشرفية"],
+    "traffic_level": "high",
+    "safety_rating": 8
+  },
+  {
+    "name": "الوحدات",
+    "lat": 31.9123,
+    "lng": 35.9234,
+    "density_peak": 8,
+    "density_off": 5,
+    "region": "عمان الوسطى",
+    "type": "high_density_residential",
+    "landmarks": ["مخيم الوحدات", "شارع الوحدات"],
+    "traffic_level": "very_high",
+    "safety_rating": 7
   }
 ]

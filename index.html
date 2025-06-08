@@ -10,92 +10,196 @@
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🚗 دليل السائق - عمان</h1>
-            <p class="subtitle">اعثر على أقرب منطقة ذات طلب عالي</p>
+    <div class="driver-container">
+        <!-- Driver-Optimized Header -->
+        <header class="driver-header">
+            <div class="header-main">
+                <h1>🚗 دليل السائق</h1>
+                <div class="voice-controls">
+                    <button id="voice-toggle" class="voice-btn" aria-label="تفعيل/إيقاف الصوت">
+                        🔊
+                    </button>
+                    <button id="emergency-btn" class="emergency-btn" aria-label="طوارئ">
+                        🚨
+                    </button>
+                </div>
+            </div>
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="status-icon">📍</span>
+                    <span id="current-area-display" class="status-text">جاري التحديد...</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-icon">⏰</span>
+                    <span id="demand-mode-display" class="status-text">جاري التحميل...</span>
+                </div>
+            </div>
         </header>
 
-        <div class="debug-panel" id="debug-panel">
-            <h3>🔍 لوحة التشخيص</h3>
-            <div class="debug-info">
-                <div class="debug-item">
-                    <span class="debug-label">حالة التطبيق:</span>
-                    <span id="app-state" class="debug-value">تهيئة</span>
+        <!-- Driver Dashboard -->
+        <div class="driver-dashboard">
+            <!-- Primary Action Card -->
+            <div class="action-card primary-card">
+                <div class="card-header">
+                    <h2>🎯 المنطقة المقترحة</h2>
+                    <div class="demand-indicator" id="demand-indicator">
+                        <span class="demand-level" id="demand-level">--</span>
+                    </div>
                 </div>
-                <div class="debug-item">
-                    <span class="debug-label">حالة البيانات:</span>
-                    <span id="data-state" class="debug-value">لم يتم التحميل</span>
+                <div class="card-content">
+                    <div class="suggested-zone" id="suggested-zone-display">جاري البحث...</div>
+                    <div class="zone-details" id="zone-details">
+                        <span class="distance" id="suggested-distance">--</span>
+                        <span class="eta" id="suggested-eta">--</span>
+                    </div>
                 </div>
-                <div class="debug-item">
-                    <span class="debug-label">حالة الخريطة:</span>
-                    <span id="map-state" class="debug-value">لم يتم التهيئة</span>
-                </div>
-                <div class="debug-item">
-                    <span class="debug-label">حالة الموقع:</span>
-                    <span id="location-state" class="debug-value">غير محدد</span>
-                </div>
-                <div class="debug-item">
-                    <span class="debug-label">الاتصال:</span>
-                    <span id="network-state" class="debug-value">فحص...</span>
-                </div>
-            </div>
-            <button id="force-reload" class="btn btn-warning" aria-label="إعادة تحميل قسري">🔄 إعادة تحميل قسري</button>
-        </div>
-
-        <div class="status-section">
-            <div class="status-card">
-                <div class="status-item">
-                    <span class="label">موقعك الحالي:</span>
-                    <span id="current-area" class="value">جاري التحديد...</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">المنطقة المقترحة:</span>
-                    <span id="suggested-zone" class="value">جاري البحث...</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">وضع الطلب:</span>
-                    <span id="demand-mode" class="value"></span>
-                </div>
-                <div class="status-item">
-                    <span class="label">حالة النظام:</span>
-                    <span id="system-status" class="value status-ready">جاري التحميل...</span>
+                <div class="card-actions">
+                    <button id="navigate-btn" class="action-btn primary-btn" disabled>
+                        🧭 توجه الآن
+                    </button>
+                    <button id="refresh-suggestion" class="action-btn secondary-btn">
+                        🔄 تحديث
+                    </button>
                 </div>
             </div>
-        </div>
 
-        <div class="controls">
-            <button id="refresh-location" class="btn btn-primary" aria-label="تحديث الموقع">
-                📍 تحديث الموقع
-            </button>
-            <button id="start-app" class="btn btn-success" aria-label="تشغيل التطبيق">
-                🚀 تشغيل التطبيق
-            </button>
-            <button id="test-data" class="btn btn-info" aria-label="اختبار البيانات">
-                🧪 اختبار البيانات
-            </button>
-            <button id="toggle-style" class="btn btn-secondary" aria-label="تغيير نمط الخريطة">
-                🗺️ تغيير النمط
-            </button>
-            <label class="toggle-container">
-                <input type="checkbox" id="high-demand-only" aria-label="عرض المناطق ذات الطلب العالي فقط">
-                <span class="toggle-text">عرض المناطق ذات الطلب العالي فقط</span>
-            </label>
-        </div>
-
-        <div id="map" class="map-container" aria-label="خريطة المناطق" role="application"></div>
-
-        <div class="zones-section">
-            <h2>المناطق المتاحة</h2>
-            <div id="loading" class="loading">
-                <div class="loading-spinner" aria-hidden="true"></div>
-                <span>جاري تحميل البيانات...</span>
-                <span class="sr-only">جاري تحميل البيانات، يرجى الانتظار</span>
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <button id="find-nearest" class="quick-btn">
+                    <span class="btn-icon">📍</span>
+                    <span class="btn-text">أقرب منطقة</span>
+                </button>
+                <button id="high-demand-filter" class="quick-btn toggle-btn">
+                    <span class="btn-icon">🔥</span>
+                    <span class="btn-text">طلب عالي فقط</span>
+                </button>
+                <button id="voice-navigation" class="quick-btn">
+                    <span class="btn-icon">🎤</span>
+                    <span class="btn-text">التوجيه الصوتي</span>
+                </button>
+                <button id="safety-mode" class="quick-btn toggle-btn">
+                    <span class="btn-icon">🛡️</span>
+                    <span class="btn-text">وضع الأمان</span>
+                </button>
             </div>
-            <div id="execution-log" class="execution-log" aria-live="polite"></div>
-            <ul id="zone-list" class="zone-list" aria-label="قائمة المناطق"></ul>
         </div>
 
+        <!-- Map Container -->
+        <div id="map" class="driver-map" aria-label="خريطة المناطق" role="application"></div>
+
+        <!-- Bottom Panel -->
+        <div class="bottom-panel">
+            <div class="panel-tabs">
+                <button class="tab-btn active" data-tab="zones">المناطق</button>
+                <button class="tab-btn" data-tab="settings">الإعدادات</button>
+                <button class="tab-btn" data-tab="debug">التشخيص</button>
+            </div>
+
+            <!-- Zones Tab -->
+            <div class="tab-content active" id="zones-tab">
+                <div class="zones-header">
+                    <h3>المناطق المتاحة</h3>
+                    <div class="zones-filter">
+                        <select id="zone-sort" class="filter-select">
+                            <option value="demand">حسب الطلب</option>
+                            <option value="distance">حسب المسافة</option>
+                            <option value="name">حسب الاسم</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="zones-grid" class="zones-grid" aria-label="قائمة المناطق"></div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div class="tab-content" id="settings-tab">
+                <div class="settings-section">
+                    <h3>إعدادات الصوت</h3>
+                    <div class="setting-item">
+                        <label for="voice-enabled">تفعيل التنبيهات الصوتية</label>
+                        <input type="checkbox" id="voice-enabled" checked>
+                    </div>
+                    <div class="setting-item">
+                        <label for="voice-volume">مستوى الصوت</label>
+                        <input type="range" id="voice-volume" min="0" max="100" value="70">
+                    </div>
+                    <div class="setting-item">
+                        <label for="voice-language">لغة التنبيهات</label>
+                        <select id="voice-language">
+                            <option value="ar">العربية</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>إعدادات القيادة</h3>
+                    <div class="setting-item">
+                        <label for="safety-mode-setting">وضع الأمان</label>
+                        <input type="checkbox" id="safety-mode-setting">
+                    </div>
+                    <div class="setting-item">
+                        <label for="auto-refresh">التحديث التلقائي</label>
+                        <input type="checkbox" id="auto-refresh" checked>
+                    </div>
+                    <div class="setting-item">
+                        <label for="map-style-setting">نمط الخريطة</label>
+                        <select id="map-style-setting">
+                            <option value="osm">عادي</option>
+                            <option value="satellite">قمر صناعي</option>
+                            <option value="dark">داكن</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Debug Tab -->
+            <div class="tab-content" id="debug-tab">
+                <div class="debug-section">
+                    <h3>معلومات النظام</h3>
+                    <div class="debug-grid">
+                        <div class="debug-item">
+                            <span class="debug-label">حالة التطبيق:</span>
+                            <span id="app-state" class="debug-value">تهيئة</span>
+                        </div>
+                        <div class="debug-item">
+                            <span class="debug-label">حالة الموقع:</span>
+                            <span id="location-state" class="debug-value">غير محدد</span>
+                        </div>
+                        <div class="debug-item">
+                            <span class="debug-label">دقة الموقع:</span>
+                            <span id="location-accuracy" class="debug-value">--</span>
+                        </div>
+                        <div class="debug-item">
+                            <span class="debug-label">عدد المناطق:</span>
+                            <span id="zones-count" class="debug-value">--</span>
+                        </div>
+                    </div>
+                    <div class="debug-actions">
+                        <button id="test-voice" class="debug-btn">اختبار الصوت</button>
+                        <button id="force-reload" class="debug-btn">إعادة تحميل</button>
+                        <button id="export-logs" class="debug-btn">تصدير السجلات</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audio Elements -->
+        <audio id="notification-sound" preload="auto">
+            <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT" type="audio/wav">
+        </audio>
+
+        <!-- Voice Alerts Container -->
+        <div id="voice-alerts" class="voice-alerts" aria-live="polite"></div>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay">
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">جاري تحميل التطبيق...</div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
         <div id="toast" class="toast" role="alert" aria-live="assertive"></div>
     </div>
 

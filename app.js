@@ -20,6 +20,7 @@ class AmmanDriverGuide {
     this.currentTab = "zones"
     this.suggestedZone = null
     this.navigationActive = false
+    this.enhancedVoiceInTextMode = false
 
     // Audio system
     this.audioContext = null
@@ -91,6 +92,13 @@ class AmmanDriverGuide {
         ],
       },
     }
+
+    // View mode settings
+    this.viewMode = "map" // "map" or "text"
+    this.autoSwitchToText = false
+    this.textModeSpeed = 30 // km/h - switch to text mode above this speed
+    this.lastKnownAddress = ""
+    this.directionInstructions = ""
 
     this.logExecution("🚗 Driver-optimized system initialized", "info")
     this.initializeAudioSystem()
@@ -291,6 +299,9 @@ class AmmanDriverGuide {
       this.showLoadingOverlay("جاري تحميل التطبيق...")
       this.logExecution("🚗 Starting driver-optimized initialization...", "info")
 
+      // Load user preferences
+      this.loadUserPreferences()
+
       // Initialize core systems
       await this.loadZones()
       await this.initMap()
@@ -302,6 +313,9 @@ class AmmanDriverGuide {
 
       // Update demand mode
       this.updateDemandMode()
+
+      // Set initial view mode
+      this.updateViewMode()
 
       this.isInitialized = true
       this.hideLoadingOverlay()
@@ -642,6 +656,26 @@ class AmmanDriverGuide {
       this.handleKeyboardShortcuts(e)
     })
 
+    // Setup view toggle
+    this.setupViewToggle()
+
+    // View mode settings
+    document.getElementById("auto-switch-text").addEventListener("change", (e) => {
+      this.autoSwitchToText = e.target.checked
+      this.saveUserPreferences()
+    })
+
+    document.getElementById("text-mode-speed").addEventListener("input", (e) => {
+      this.textModeSpeed = Number.parseInt(e.target.value)
+      document.getElementById("speed-display").textContent = e.target.value
+      this.saveUserPreferences()
+    })
+
+    document.getElementById("enhanced-voice-text").addEventListener("change", (e) => {
+      this.enhancedVoiceInTextMode = e.target.checked
+      this.saveUserPreferences()
+    })
+
     this.logExecution("✅ Driver interface events configured", "success")
   }
 
@@ -884,6 +918,17 @@ class AmmanDriverGuide {
         // Update debug info
         this.updateDebugInfo("location-accuracy", `${Math.round(newLocation.accuracy)}م`)
         this.updateDebugInfo("location-state", "نشط")
+
+        // Update location display if in text mode
+        if (this.viewMode === "text") {
+          this.updateLocationDisplay()
+          this.updateDirectionInstructions()
+        }
+
+        // Reverse geocode for better address display
+        if (hasMovedSignificantly) {
+          this.reverseGeocode(newLocation.lat, newLocation.lng)
+        }
       }
     }
   }
@@ -992,6 +1037,19 @@ class AmmanDriverGuide {
       if (!this.previousSuggestion || this.previousSuggestion.name !== suggestion.name) {
         this.playVoiceAlert(`المنطقة المقترحة الجديدة: ${suggestion.name}`)
         this.previousSuggestion = suggestion
+      }
+
+      // Update direction instructions in text mode
+      if (this.viewMode === "text") {
+        this.updateDirectionInstructions()
+
+        if (this.enhancedVoiceInTextMode && suggestion) {
+          const direction = this.getDirectionFromBearing(
+            this.calculateBearing(this.currentLocation.lat, this.currentLocation.lng, suggestion.lat, suggestion.lng),
+          )
+
+          this.playVoiceAlert(`اتجه ${direction} نحو ${suggestion.name}`)
+        }
       }
     }
   }
@@ -1324,6 +1382,285 @@ class AmmanDriverGuide {
     }
 
     console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`)
+  }
+
+  setupViewToggle() {
+    const viewToggleBtn = document.getElementById("view-toggle")
+
+    viewToggleBtn.addEventListener("click", () => {
+      this.toggleViewMode()
+    })
+
+    // Auto-switch based on speed if enabled
+    if (this.autoSwitchToText) {
+      setInterval(() => {
+        this.checkAutoSwitch()
+      }, 2000)
+    }
+  }
+
+  toggleViewMode() {
+    this.viewMode = this.viewMode === "map" ? "text" : "map"
+    this.updateViewMode()
+
+    const message = this.viewMode === "text" ? "تم التبديل إلى وضع النص المبسط" : "تم التبديل إلى وضع الخريطة"
+
+    this.showToast(message, "info")
+    this.playVoiceAlert(message)
+
+    // Save preference
+    localStorage.setItem("driverViewMode", this.viewMode)
+  }
+
+  updateViewMode() {
+    const container = document.querySelector(".driver-container")
+    const map = document.getElementById("map")
+    const locationCard = document.getElementById("location-display-card")
+    const viewToggleBtn = document.getElementById("view-toggle")
+
+    if (this.viewMode === "text") {
+      container.classList.add("text-only-mode")
+      map.classList.add("minimized")
+      locationCard.classList.add("active")
+      viewToggleBtn.classList.add("text-mode")
+      viewToggleBtn.textContent = "📱"
+      viewToggleBtn.setAttribute("aria-label", "تبديل إلى وضع الخريطة")
+
+      this.updateLocationDisplay()
+      this.updateDirectionInstructions()
+    } else {
+      container.classList.remove("text-only-mode")
+      map.classList.remove("minimized")
+      locationCard.classList.remove("active")
+      viewToggleBtn.classList.remove("text-mode")
+      viewToggleBtn.textContent = "🗺️"
+      viewToggleBtn.setAttribute("aria-label", "تبديل إلى وضع النص")
+    }
+
+    // Resize map when switching back
+    if (this.viewMode === "map" && this.map) {
+      setTimeout(() => {
+        this.map.resize()
+      }, 300)
+    }
+  }
+
+  updateLocationDisplay() {
+    if (this.viewMode !== "text") return
+
+    const locationName = document.getElementById("current-location-name")
+    const accuracyInfo = document.getElementById("accuracy-info")
+    const speedInfo = document.getElementById("speed-info")
+
+    if (this.currentLocation) {
+      // Update location name
+      if (this.lastKnownAddress) {
+        locationName.textContent = this.lastKnownAddress
+      } else {
+        const nearest = this.findNearestZone(this.currentLocation)
+        if (nearest) {
+          const distance =
+            this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, nearest.lat, nearest.lng) / 1000
+
+          const distanceText = distance < 1 ? `${Math.round(distance * 1000)} م` : `${distance.toFixed(1)} كم`
+
+          locationName.textContent = `قرب ${nearest.name} (${distanceText})`
+        } else {
+          locationName.textContent = "موقع غير معروف"
+        }
+      }
+
+      // Update accuracy
+      accuracyInfo.textContent = `${Math.round(this.currentLocation.accuracy)}م`
+
+      // Update speed
+      if (this.currentLocation.speed !== null && this.currentLocation.speed !== undefined) {
+        const speedKmh = Math.round(this.currentLocation.speed * 3.6)
+        speedInfo.textContent = `${speedKmh} كم/س`
+      } else {
+        speedInfo.textContent = "--"
+      }
+    } else {
+      locationName.textContent = "جاري تحديد الموقع..."
+      accuracyInfo.textContent = "--"
+      speedInfo.textContent = "--"
+    }
+  }
+
+  updateDirectionInstructions() {
+    if (this.viewMode !== "text") return
+
+    const directionIcon = document.getElementById("direction-icon")
+    const directionText = document.getElementById("direction-text")
+
+    if (this.suggestedZone && this.currentLocation) {
+      const bearing = this.calculateBearing(
+        this.currentLocation.lat,
+        this.currentLocation.lng,
+        this.suggestedZone.lat,
+        this.suggestedZone.lng,
+      )
+
+      const direction = this.getDirectionFromBearing(bearing)
+      const distance =
+        this.haversineDistance(
+          this.currentLocation.lat,
+          this.currentLocation.lng,
+          this.suggestedZone.lat,
+          this.suggestedZone.lng,
+        ) / 1000
+
+      directionIcon.textContent = this.getDirectionIcon(direction)
+
+      const distanceText = distance < 1 ? `${Math.round(distance * 1000)} متر` : `${distance.toFixed(1)} كيلومتر`
+
+      directionText.textContent = `اتجه ${direction} نحو ${this.suggestedZone.name} (${distanceText})`
+    } else {
+      directionIcon.textContent = "🎯"
+      directionText.textContent = "ابحث عن منطقة ذات طلب عالي"
+    }
+  }
+
+  calculateBearing(lat1, lng1, lat2, lng2) {
+    const dLng = ((lng2 - lng1) * Math.PI) / 180
+    const lat1Rad = (lat1 * Math.PI) / 180
+    const lat2Rad = (lat2 * Math.PI) / 180
+
+    const y = Math.sin(dLng) * Math.cos(lat2Rad)
+    const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLng)
+
+    const bearing = (Math.atan2(y, x) * 180) / Math.PI
+    return (bearing + 360) % 360
+  }
+
+  getDirectionFromBearing(bearing) {
+    const directions = [
+      { name: "شمالاً", min: 337.5, max: 22.5 },
+      { name: "شمال شرق", min: 22.5, max: 67.5 },
+      { name: "شرقاً", min: 67.5, max: 112.5 },
+      { name: "جنوب شرق", min: 112.5, max: 157.5 },
+      { name: "جنوباً", min: 157.5, max: 202.5 },
+      { name: "جنوب غرب", min: 202.5, max: 247.5 },
+      { name: "غرباً", min: 247.5, max: 292.5 },
+      { name: "شمال غرب", min: 292.5, max: 337.5 },
+    ]
+
+    for (const dir of directions) {
+      if (dir.min > dir.max) {
+        // Handle north direction wrap-around
+        if (bearing >= dir.min || bearing <= dir.max) {
+          return dir.name
+        }
+      } else {
+        if (bearing >= dir.min && bearing <= dir.max) {
+          return dir.name
+        }
+      }
+    }
+
+    return "شمالاً"
+  }
+
+  getDirectionIcon(direction) {
+    const icons = {
+      شمالاً: "⬆️",
+      "شمال شرق": "↗️",
+      شرقاً: "➡️",
+      "جنوب شرق": "↘️",
+      جنوباً: "⬇️",
+      "جنوب غرب": "↙️",
+      غرباً: "⬅️",
+      "شمال غرب": "↖️",
+    }
+
+    return icons[direction] || "➡️"
+  }
+
+  checkAutoSwitch() {
+    if (!this.autoSwitchToText || !this.currentLocation) return
+
+    const speed = this.currentLocation.speed
+    if (speed !== null && speed !== undefined) {
+      const speedKmh = speed * 3.6
+
+      if (speedKmh > this.textModeSpeed && this.viewMode === "map") {
+        this.viewMode = "text"
+        this.updateViewMode()
+        this.playVoiceAlert("تم التبديل التلقائي إلى وضع النص للقيادة الآمنة")
+      } else if (speedKmh <= 5 && this.viewMode === "text") {
+        this.viewMode = "map"
+        this.updateViewMode()
+      }
+    }
+  }
+
+  async reverseGeocode(lat, lng) {
+    try {
+      const response = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=ar`,
+      )
+
+      if (response.ok) {
+        const data = await response.json()
+
+        // Extract the most relevant address components
+        const addressComponents = [
+          data.locality,
+          data.localityInfo?.administrative?.[3]?.name,
+          data.localityInfo?.administrative?.[2]?.name,
+          data.city,
+          data.principalSubdivision,
+        ].filter(Boolean)
+
+        if (addressComponents.length > 0) {
+          this.lastKnownAddress = addressComponents[0]
+          this.updateLocationDisplay()
+          return this.lastKnownAddress
+        }
+      }
+    } catch (error) {
+      this.logExecution(`⚠️ Reverse geocoding failed: ${error.message}`, "warning")
+    }
+
+    return null
+  }
+
+  loadUserPreferences() {
+    // Load saved view mode
+    const savedViewMode = localStorage.getItem("driverViewMode")
+    if (savedViewMode && ["map", "text"].includes(savedViewMode)) {
+      this.viewMode = savedViewMode
+    }
+
+    // Load auto-switch preference
+    const autoSwitch = localStorage.getItem("autoSwitchToText")
+    if (autoSwitch !== null) {
+      this.autoSwitchToText = autoSwitch === "true"
+    }
+
+    // Load speed threshold
+    const speedThreshold = localStorage.getItem("textModeSpeed")
+    if (speedThreshold) {
+      this.textModeSpeed = Number.parseInt(speedThreshold)
+    }
+
+    // Update UI elements
+    document.getElementById("auto-switch-text").checked = this.autoSwitchToText
+    document.getElementById("text-mode-speed").value = this.textModeSpeed
+    document.getElementById("speed-display").textContent = this.textModeSpeed
+
+    const enhancedVoice = localStorage.getItem("enhancedVoiceInTextMode")
+    if (enhancedVoice !== null) {
+      this.enhancedVoiceInTextMode = enhancedVoice === "true"
+      document.getElementById("enhanced-voice-text").checked = this.enhancedVoiceInTextMode
+    }
+  }
+
+  saveUserPreferences() {
+    localStorage.setItem("driverViewMode", this.viewMode)
+    localStorage.setItem("autoSwitchToText", this.autoSwitchToText.toString())
+    localStorage.setItem("textModeSpeed", this.textModeSpeed.toString())
+    localStorage.setItem("enhancedVoiceInTextMode", this.enhancedVoiceInTextMode.toString())
   }
 }
 

@@ -23,6 +23,11 @@
                         🚨
                     </button>
                 </div>
+                <div class="view-controls">
+                    <button id="view-toggle" class="view-toggle-btn" aria-label="تبديل عرض الخريطة">
+                        🗺️
+                    </button>
+                </div>
             </div>
             <div class="status-bar">
                 <div class="status-item">
@@ -38,6 +43,23 @@
 
         <!-- Driver Dashboard -->
         <div class="driver-dashboard">
+            <!-- Location Display Mode -->
+            <div class="location-display-card" id="location-display-card">
+                <div class="location-main">
+                    <div class="location-icon">📍</div>
+                    <div class="location-info">
+                        <div class="current-location-name" id="current-location-name">جاري تحديد الموقع...</div>
+                        <div class="location-details" id="location-details">
+                            <span class="accuracy-info" id="accuracy-info">--</span>
+                            <span class="speed-info" id="speed-info">--</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="next-direction" id="next-direction">
+                    <div class="direction-icon" id="direction-icon">➡️</div>
+                    <div class="direction-text" id="direction-text">استمر في الطريق الحالي</div>
+                </div>
+            </div>
             <!-- Primary Action Card -->
             <div class="action-card primary-card">
                 <div class="card-header">
@@ -148,6 +170,23 @@
                             <option value="satellite">قمر صناعي</option>
                             <option value="dark">داكن</option>
                         </select>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>إعدادات العرض</h3>
+                    <div class="setting-item">
+                        <label for="auto-switch-text">التبديل التلقائي للنص أثناء القيادة</label>
+                        <input type="checkbox" id="auto-switch-text">
+                    </div>
+                    <div class="setting-item">
+                        <label for="text-mode-speed">سرعة التبديل التلقائي (كم/س)</label>
+                        <input type="range" id="text-mode-speed" min="20" max="60" value="30">
+                        <span id="speed-display">30</span>
+                    </div>
+                    <div class="setting-item">
+                        <label for="enhanced-voice-text">تعليمات صوتية محسنة في وضع النص</label>
+                        <input type="checkbox" id="enhanced-voice-text" checked>
                     </div>
                 </div>
             </div>

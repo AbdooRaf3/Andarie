@@ -100,6 +100,13 @@ class AmmanDriverGuide {
     this.lastKnownAddress = ""
     this.directionInstructions = ""
 
+    // Share system
+    this.shareModal = null
+    this.addContactModal = null
+    this.favoriteContacts = []
+    this.activeShares = new Map()
+    this.shareId = 0
+
     this.logExecution("🚗 Driver-optimized system initialized", "info")
     this.initializeAudioSystem()
     this.checkBrowserCompatibility()
@@ -675,6 +682,9 @@ class AmmanDriverGuide {
       this.enhancedVoiceInTextMode = e.target.checked
       this.saveUserPreferences()
     })
+
+    // Share system
+    this.setupShareSystem()
 
     this.logExecution("✅ Driver interface events configured", "success")
   }
@@ -1661,6 +1671,511 @@ class AmmanDriverGuide {
     localStorage.setItem("autoSwitchToText", this.autoSwitchToText.toString())
     localStorage.setItem("textModeSpeed", this.textModeSpeed.toString())
     localStorage.setItem("enhancedVoiceInTextMode", this.enhancedVoiceInTextMode.toString())
+  }
+
+  setupShareSystem() {
+    this.shareModal = document.getElementById("share-modal")
+    this.addContactModal = document.getElementById("add-contact-modal")
+
+    // Load saved contacts
+    this.loadFavoriteContacts()
+
+    // Share button
+    document.getElementById("share-location").addEventListener("click", () => {
+      this.openShareModal()
+    })
+
+    // Close modals
+    document.getElementById("close-share-modal").addEventListener("click", () => {
+      this.closeShareModal()
+    })
+
+    document.getElementById("close-add-contact").addEventListener("click", () => {
+      this.closeAddContactModal()
+    })
+
+    // Share tabs
+    document.querySelectorAll(".share-tab-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        this.switchShareTab(e.target.dataset.tab)
+      })
+    })
+
+    // Share options
+    document.getElementById("share-whatsapp").addEventListener("click", () => {
+      this.shareViaWhatsApp()
+    })
+
+    document.getElementById("share-telegram").addEventListener("click", () => {
+      this.shareViaTelegram()
+    })
+
+    document.getElementById("share-sms").addEventListener("click", () => {
+      this.shareViaSMS()
+    })
+
+    document.getElementById("share-copy").addEventListener("click", () => {
+      this.copyLocationToClipboard()
+    })
+
+    document.getElementById("share-email").addEventListener("click", () => {
+      this.shareViaEmail()
+    })
+
+    document.getElementById("share-maps").addEventListener("click", () => {
+      this.shareViaGoogleMaps()
+    })
+
+    // Add contact
+    document.getElementById("add-contact").addEventListener("click", () => {
+      this.openAddContactModal()
+    })
+
+    document.getElementById("add-contact-form").addEventListener("submit", (e) => {
+      e.preventDefault()
+      this.saveNewContact()
+    })
+
+    document.getElementById("cancel-add-contact").addEventListener("click", () => {
+      this.closeAddContactModal()
+    })
+
+    // Contact search
+    document.getElementById("contact-search").addEventListener("input", (e) => {
+      this.filterContacts(e.target.value)
+    })
+
+    // Live sharing
+    document.getElementById("start-live-share").addEventListener("click", () => {
+      this.startLiveSharing()
+    })
+
+    // Close modal on outside click
+    this.shareModal.addEventListener("click", (e) => {
+      if (e.target === this.shareModal) {
+        this.closeShareModal()
+      }
+    })
+
+    this.addContactModal.addEventListener("click", (e) => {
+      if (e.target === this.addContactModal) {
+        this.closeAddContactModal()
+      }
+    })
+  }
+
+  openShareModal() {
+    this.updateShareLocationPreview()
+    this.shareModal.classList.add("show")
+    this.playVoiceAlert("فتح نافذة مشاركة الموقع")
+  }
+
+  closeShareModal() {
+    this.shareModal.classList.remove("show")
+  }
+
+  openAddContactModal() {
+    this.addContactModal.classList.add("show")
+    document.getElementById("contact-name").focus()
+  }
+
+  closeAddContactModal() {
+    document.getElementById("add-contact-form").reset()
+    this.addContactModal.classList.remove("show")
+  }
+
+  switchShareTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll(".share-tab-content").forEach((tab) => {
+      tab.classList.remove("active")
+    })
+
+    document.querySelectorAll(".share-tab-btn").forEach((btn) => {
+      btn.classList.remove("active")
+    })
+
+    // Show selected tab
+    document.getElementById(`${tabName}-share-tab`).classList.add("active")
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add("active")
+
+    // Update content based on tab
+    if (tabName === "contacts") {
+      this.updateContactsList()
+    } else if (tabName === "live") {
+      this.updateActiveShares()
+    }
+  }
+
+  updateShareLocationPreview() {
+    const locationName = document.getElementById("share-location-name")
+    const locationDetails = document.getElementById("share-location-details")
+
+    if (this.currentLocation) {
+      if (this.lastKnownAddress) {
+        locationName.textContent = this.lastKnownAddress
+      } else {
+        const nearest = this.findNearestZone(this.currentLocation)
+        if (nearest) {
+          locationName.textContent = `قرب ${nearest.name}`
+        } else {
+          locationName.textContent = "الموقع الحالي"
+        }
+      }
+
+      const coords = `${this.currentLocation.lat.toFixed(6)}, ${this.currentLocation.lng.toFixed(6)}`
+      const accuracy = `دقة: ${Math.round(this.currentLocation.accuracy)}م`
+      const timestamp = new Date().toLocaleTimeString("ar-JO")
+
+      locationDetails.textContent = `${coords} • ${accuracy} • ${timestamp}`
+
+      if (this.suggestedZone) {
+        locationDetails.textContent += ` • الوجهة: ${this.suggestedZone.name}`
+      }
+    } else {
+      locationName.textContent = "جاري تحديد الموقع..."
+      locationDetails.textContent = "يرجى انتظار تحديد الموقع"
+    }
+  }
+
+  generateLocationMessage() {
+    if (!this.currentLocation) {
+      return "لم يتم تحديد الموقع بعد"
+    }
+
+    let message = "📍 موقعي الحالي:\n"
+
+    if (this.lastKnownAddress) {
+      message += `${this.lastKnownAddress}\n`
+    } else {
+      const nearest = this.findNearestZone(this.currentLocation)
+      if (nearest) {
+        message += `قرب ${nearest.name}\n`
+      }
+    }
+
+    message += `الإحداثيات: ${this.currentLocation.lat.toFixed(6)}, ${this.currentLocation.lng.toFixed(6)}\n`
+    message += `الوقت: ${new Date().toLocaleString("ar-JO")}\n`
+
+    if (this.suggestedZone) {
+      message += `🎯 الوجهة المقترحة: ${this.suggestedZone.name}\n`
+    }
+
+    const googleMapsUrl = `https://maps.google.com/maps?q=${this.currentLocation.lat},${this.currentLocation.lng}`
+    message += `\n🗺️ عرض على الخريطة: ${googleMapsUrl}`
+
+    return message
+  }
+
+  shareViaWhatsApp() {
+    const message = this.generateLocationMessage()
+    const encodedMessage = encodeURIComponent(message)
+    const url = `https://wa.me/?text=${encodedMessage}`
+
+    window.open(url, "_blank")
+    this.logExecution("📱 Shared location via WhatsApp", "info")
+    this.playVoiceAlert("تم مشاركة الموقع عبر واتساب")
+    this.closeShareModal()
+  }
+
+  shareViaTelegram() {
+    const message = this.generateLocationMessage()
+    const encodedMessage = encodeURIComponent(message)
+    const url = `https://t.me/share/url?url=${encodedMessage}`
+
+    window.open(url, "_blank")
+    this.logExecution("📱 Shared location via Telegram", "info")
+    this.playVoiceAlert("تم مشاركة الموقع عبر تيليجرام")
+    this.closeShareModal()
+  }
+
+  shareViaSMS() {
+    const message = this.generateLocationMessage()
+    const encodedMessage = encodeURIComponent(message)
+    const url = `sms:?body=${encodedMessage}`
+
+    window.open(url, "_blank")
+    this.logExecution("📱 Shared location via SMS", "info")
+    this.playVoiceAlert("تم مشاركة الموقع عبر الرسائل النصية")
+    this.closeShareModal()
+  }
+
+  async copyLocationToClipboard() {
+    const message = this.generateLocationMessage()
+
+    try {
+      await navigator.clipboard.writeText(message)
+      this.showToast("تم نسخ معلومات الموقع", "success")
+      this.playVoiceAlert("تم نسخ معلومات الموقع")
+    } catch (error) {
+      // Fallback for older browsers
+      const textArea = document.createElement("textarea")
+      textArea.value = message
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand("copy")
+      document.body.removeChild(textArea)
+
+      this.showToast("تم نسخ معلومات الموقع", "success")
+      this.playVoiceAlert("تم نسخ معلومات الموقع")
+    }
+
+    this.logExecution("📋 Copied location to clipboard", "info")
+    this.closeShareModal()
+  }
+
+  shareViaEmail() {
+    const message = this.generateLocationMessage()
+    const subject = "مشاركة الموقع - دليل السائق"
+    const encodedSubject = encodeURIComponent(subject)
+    const encodedMessage = encodeURIComponent(message)
+
+    const url = `mailto:?subject=${encodedSubject}&body=${encodedMessage}`
+    window.open(url, "_blank")
+
+    this.logExecution("📧 Shared location via email", "info")
+    this.playVoiceAlert("تم مشاركة الموقع عبر البريد الإلكتروني")
+    this.closeShareModal()
+  }
+
+  shareViaGoogleMaps() {
+    if (!this.currentLocation) {
+      this.showToast("لم يتم تحديد الموقع بعد", "warning")
+      return
+    }
+
+    const url = `https://maps.google.com/maps?q=${this.currentLocation.lat},${this.currentLocation.lng}`
+    window.open(url, "_blank")
+
+    this.logExecution("🗺️ Opened location in Google Maps", "info")
+    this.playVoiceAlert("تم فتح الموقع في خرائط جوجل")
+    this.closeShareModal()
+  }
+
+  saveNewContact() {
+    const name = document.getElementById("contact-name").value.trim()
+    const phone = document.getElementById("contact-phone").value.trim()
+    const type = document.getElementById("contact-type").value
+
+    if (!name || !phone) {
+      this.showToast("يرجى ملء جميع الحقول المطلوبة", "warning")
+      return
+    }
+
+    const contact = {
+      id: Date.now(),
+      name,
+      phone,
+      type,
+      avatar: name.charAt(0).toUpperCase(),
+    }
+
+    this.favoriteContacts.push(contact)
+    this.saveFavoriteContacts()
+    this.updateContactsList()
+    this.closeAddContactModal()
+
+    this.showToast(`تم إضافة ${name} إلى جهات الاتصال`, "success")
+    this.playVoiceAlert(`تم إضافة ${name} إلى جهات الاتصال`)
+    this.logExecution(`👤 Added new contact: ${name}`, "info")
+  }
+
+  updateContactsList() {
+    const container = document.getElementById("favorite-contacts")
+    container.innerHTML = ""
+
+    if (this.favoriteContacts.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+          <div style="font-size: 3rem; margin-bottom: 1rem;">👥</div>
+          <p>لا توجد جهات اتصال محفوظة</p>
+          <p>أضف جهات اتصال للمشاركة السريعة</p>
+        </div>
+      `
+      return
+    }
+
+    this.favoriteContacts.forEach((contact) => {
+      const contactElement = this.createContactElement(contact)
+      container.appendChild(contactElement)
+    })
+  }
+
+  createContactElement(contact) {
+    const element = document.createElement("div")
+    element.className = "contact-item"
+
+    element.innerHTML = `
+      <div class="contact-avatar">${contact.avatar}</div>
+      <div class="contact-info">
+        <div class="contact-name">${contact.name}</div>
+        <div class="contact-phone">${contact.phone}</div>
+      </div>
+      <div class="contact-type">${this.getContactTypeText(contact.type)}</div>
+    `
+
+    element.addEventListener("click", () => {
+      this.shareToContact(contact)
+    })
+
+    return element
+  }
+
+  getContactTypeText(type) {
+    const types = {
+      customer: "عميل",
+      family: "عائلة",
+      friend: "صديق",
+      work: "عمل",
+    }
+    return types[type] || type
+  }
+
+  shareToContact(contact) {
+    const message = this.generateLocationMessage()
+    const encodedMessage = encodeURIComponent(message)
+    const url = `https://wa.me/${contact.phone.replace(/\D/g, "")}?text=${encodedMessage}`
+
+    window.open(url, "_blank")
+    this.logExecution(`📱 Shared location to ${contact.name}`, "info")
+    this.playVoiceAlert(`تم مشاركة الموقع مع ${contact.name}`)
+    this.closeShareModal()
+  }
+
+  filterContacts(searchTerm) {
+    const contacts = document.querySelectorAll(".contact-item")
+    const term = searchTerm.toLowerCase()
+
+    contacts.forEach((contact) => {
+      const name = contact.querySelector(".contact-name").textContent.toLowerCase()
+      const phone = contact.querySelector(".contact-phone").textContent.toLowerCase()
+
+      if (name.includes(term) || phone.includes(term)) {
+        contact.style.display = "flex"
+      } else {
+        contact.style.display = "none"
+      }
+    })
+  }
+
+  startLiveSharing() {
+    if (!this.currentLocation) {
+      this.showToast("لم يتم تحديد الموقع بعد", "warning")
+      return
+    }
+
+    const duration = Number.parseInt(document.getElementById("share-duration").value)
+    const includeDestination = document.getElementById("include-destination").checked
+    const showRoute = document.getElementById("show-route").checked
+
+    const shareId = ++this.shareId
+    const endTime = new Date(Date.now() + duration * 60000)
+
+    const shareData = {
+      id: shareId,
+      startTime: new Date(),
+      endTime: endTime,
+      duration: duration,
+      includeDestination,
+      showRoute,
+      active: true,
+    }
+
+    this.activeShares.set(shareId, shareData)
+
+    // Generate sharing URL
+    const shareUrl = this.generateLiveShareUrl(shareData)
+
+    // Copy URL to clipboard
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      this.showToast("تم نسخ رابط التتبع المباشر", "success")
+      this.playVoiceAlert("تم بدء المشاركة المباشرة ونسخ الرابط")
+    })
+
+    this.updateActiveShares()
+    this.logExecution(`🔴 Started live sharing for ${duration} minutes`, "info")
+
+    // Set timer to stop sharing
+    setTimeout(() => {
+      this.stopLiveSharing(shareId)
+    }, duration * 60000)
+  }
+
+  generateLiveShareUrl(shareData) {
+    const baseUrl = window.location.origin + window.location.pathname
+    const params = new URLSearchParams({
+      track: shareData.id,
+      expires: shareData.endTime.getTime(),
+    })
+
+    return `${baseUrl}?${params.toString()}`
+  }
+
+  stopLiveSharing(shareId) {
+    const shareData = this.activeShares.get(shareId)
+    if (shareData) {
+      shareData.active = false
+      this.activeShares.delete(shareId)
+      this.updateActiveShares()
+      this.playVoiceAlert("تم إيقاف المشاركة المباشرة")
+      this.logExecution(`⏹️ Stopped live sharing ${shareId}`, "info")
+    }
+  }
+
+  updateActiveShares() {
+    const container = document.getElementById("active-shares")
+    container.innerHTML = ""
+
+    if (this.activeShares.size === 0) {
+      return
+    }
+
+    const title = document.createElement("h4")
+    title.textContent = "المشاركات النشطة"
+    title.style.marginBottom = "var(--spacing-md)"
+    container.appendChild(title)
+
+    this.activeShares.forEach((shareData, shareId) => {
+      const shareElement = this.createActiveShareElement(shareData)
+      container.appendChild(shareElement)
+    })
+  }
+
+  createActiveShareElement(shareData) {
+    const element = document.createElement("div")
+    element.className = "active-share-item"
+
+    const timeRemaining = Math.max(0, Math.floor((shareData.endTime - new Date()) / 60000))
+
+    element.innerHTML = `
+      <div class="share-status">
+        <div class="status-indicator"></div>
+        <div class="share-info">
+          <div class="share-recipient">مشاركة مباشرة #${shareData.id}</div>
+          <div class="share-time">متبقي: ${timeRemaining} دقيقة</div>
+        </div>
+      </div>
+      <button class="stop-share-btn" onclick="window.driverGuide.stopLiveSharing(${shareData.id})">
+        إيقاف
+      </button>
+    `
+
+    return element
+  }
+
+  loadFavoriteContacts() {
+    const saved = localStorage.getItem("driverFavoriteContacts")
+    if (saved) {
+      try {
+        this.favoriteContacts = JSON.parse(saved)
+      } catch (error) {
+        this.logExecution("⚠️ Failed to load contacts", "warning")
+        this.favoriteContacts = []
+      }
+    }
+  }
+
+  saveFavoriteContacts() {
+    localStorage.setItem("driverFavoriteContacts", JSON.stringify(this.favoriteContacts))
   }
 }
 

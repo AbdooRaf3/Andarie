@@ -19,6 +19,9 @@
                     <button id="voice-toggle" class="voice-btn" aria-label="تفعيل/إيقاف الصوت">
                         🔊
                     </button>
+                    <button id="share-location" class="share-btn" aria-label="مشاركة الموقع">
+                        📤
+                    </button>
                     <button id="emergency-btn" class="emergency-btn" aria-label="طوارئ">
                         🚨
                     </button>
@@ -240,6 +243,139 @@
 
         <!-- Toast Notifications -->
         <div id="toast" class="toast" role="alert" aria-live="assertive"></div>
+
+        <!-- Share Location Modal -->
+        <div id="share-modal" class="share-modal">
+            <div class="share-modal-content">
+                <div class="share-header">
+                    <h3>مشاركة الموقع</h3>
+                    <button id="close-share-modal" class="close-btn">✕</button>
+                </div>
+                
+                <div class="share-tabs">
+                    <button class="share-tab-btn active" data-tab="quick">مشاركة سريعة</button>
+                    <button class="share-tab-btn" data-tab="contacts">جهات الاتصال</button>
+                    <button class="share-tab-btn" data-tab="live">تتبع مباشر</button>
+                </div>
+
+                <!-- Quick Share Tab -->
+                <div class="share-tab-content active" id="quick-share-tab">
+                    <div class="location-preview">
+                        <div class="preview-icon">📍</div>
+                        <div class="preview-info">
+                            <div class="preview-title" id="share-location-name">الموقع الحالي</div>
+                            <div class="preview-details" id="share-location-details">جاري تحديد الموقع...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="share-options">
+                        <button id="share-whatsapp" class="share-option-btn whatsapp">
+                            <span class="share-icon">💬</span>
+                            <span class="share-text">WhatsApp</span>
+                        </button>
+                        <button id="share-telegram" class="share-option-btn telegram">
+                            <span class="share-icon">✈️</span>
+                            <span class="share-text">Telegram</span>
+                        </button>
+                        <button id="share-sms" class="share-option-btn sms">
+                            <span class="share-icon">💬</span>
+                            <span class="share-text">رسالة نصية</span>
+                        </button>
+                        <button id="share-copy" class="share-option-btn copy">
+                            <span class="share-icon">📋</span>
+                            <span class="share-text">نسخ الرابط</span>
+                        </button>
+                        <button id="share-email" class="share-option-btn email">
+                            <span class="share-icon">📧</span>
+                            <span class="share-text">بريد إلكتروني</span>
+                        </button>
+                        <button id="share-maps" class="share-option-btn maps">
+                            <span class="share-icon">🗺️</span>
+                            <span class="share-text">خرائط جوجل</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Contacts Tab -->
+                <div class="share-tab-content" id="contacts-share-tab">
+                    <div class="contacts-header">
+                        <input type="text" id="contact-search" placeholder="البحث في جهات الاتصال..." class="contact-search">
+                        <button id="add-contact" class="add-contact-btn">+ إضافة جهة اتصال</button>
+                    </div>
+                    <div id="favorite-contacts" class="favorite-contacts"></div>
+                </div>
+
+                <!-- Live Tracking Tab -->
+                <div class="share-tab-content" id="live-share-tab">
+                    <div class="live-tracking-info">
+                        <div class="live-icon">📡</div>
+                        <h4>التتبع المباشر</h4>
+                        <p>مشاركة موقعك المباشر مع الآخرين لفترة محددة</p>
+                    </div>
+                    
+                    <div class="live-options">
+                        <div class="duration-selector">
+                            <label>مدة المشاركة:</label>
+                            <select id="share-duration">
+                                <option value="15">15 دقيقة</option>
+                                <option value="30" selected>30 دقيقة</option>
+                                <option value="60">ساعة واحدة</option>
+                                <option value="120">ساعتان</option>
+                                <option value="480">8 ساعات</option>
+                            </select>
+                        </div>
+                        
+                        <div class="privacy-options">
+                            <label>
+                                <input type="checkbox" id="include-destination" checked>
+                                تضمين الوجهة المقترحة
+                            </label>
+                            <label>
+                                <input type="checkbox" id="show-route">
+                                عرض المسار المتبع
+                            </label>
+                        </div>
+                        
+                        <button id="start-live-share" class="start-live-btn">بدء المشاركة المباشرة</button>
+                    </div>
+                    
+                    <div id="active-shares" class="active-shares"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Contact Modal -->
+        <div id="add-contact-modal" class="add-contact-modal">
+            <div class="add-contact-content">
+                <div class="add-contact-header">
+                    <h3>إضافة جهة اتصال</h3>
+                    <button id="close-add-contact" class="close-btn">✕</button>
+                </div>
+                <form id="add-contact-form">
+                    <div class="form-group">
+                        <label for="contact-name">الاسم:</label>
+                        <input type="text" id="contact-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="contact-phone">رقم الهاتف:</label>
+                        <input type="tel" id="contact-phone" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="contact-type">النوع:</label>
+                        <select id="contact-type">
+                            <option value="customer">عميل</option>
+                            <option value="family">عائلة</option>
+                            <option value="friend">صديق</option>
+                            <option value="work">عمل</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="save-contact-btn">حفظ</button>
+                        <button type="button" id="cancel-add-contact" class="cancel-btn">إلغاء</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <script src="https://unpkg.com/maplibre-gl@4.0.2/dist/maplibre-gl.js"></script>

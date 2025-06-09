@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="دليل السائق للمناطق ذات الطلب العالي في عمان">
+    <meta name="description" content="دليل السائق للمناطق ذات الطلب العالي في عمان - تطبيق لمساعدة السائقين على إيجاد المناطق ذات الطلب العالي">
     <meta name="theme-color" content="#4361ee">
-    <title>دليل السائق - عمان</title>
+    <title>دليل السائق للمناطق ذات الطلب العالي - عمان</title>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.0.2/dist/maplibre-gl.css" />
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
     <div class="driver-container">
-        <!-- Header -->
+        <!-- Driver-Optimized Header -->
         <header class="driver-header">
             <div class="header-main">
                 <h1>🚗 دليل السائق</h1>
@@ -18,8 +19,16 @@
                     <button id="voice-toggle" class="voice-btn" aria-label="تفعيل/إيقاف الصوت">
                         🔊
                     </button>
+                    <button id="share-location" class="share-btn" aria-label="مشاركة الموقع">
+                        📤
+                    </button>
                     <button id="emergency-btn" class="emergency-btn" aria-label="طوارئ">
                         🚨
+                    </button>
+                </div>
+                <div class="view-controls">
+                    <button id="view-toggle" class="view-toggle-btn" aria-label="تبديل عرض الخريطة">
+                        🗺️
                     </button>
                 </div>
             </div>
@@ -35,8 +44,25 @@
             </div>
         </header>
 
-        <!-- Dashboard -->
+        <!-- Driver Dashboard -->
         <div class="driver-dashboard">
+            <!-- Location Display Mode -->
+            <div class="location-display-card" id="location-display-card">
+                <div class="location-main">
+                    <div class="location-icon">📍</div>
+                    <div class="location-info">
+                        <div class="current-location-name" id="current-location-name">جاري تحديد الموقع...</div>
+                        <div class="location-details" id="location-details">
+                            <span class="accuracy-info" id="accuracy-info">--</span>
+                            <span class="speed-info" id="speed-info">--</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="next-direction" id="next-direction">
+                    <div class="direction-icon" id="direction-icon">➡️</div>
+                    <div class="direction-text" id="direction-text">استمر في الطريق الحالي</div>
+                </div>
+            </div>
             <!-- Primary Action Card -->
             <div class="action-card primary-card">
                 <div class="card-header">
@@ -83,15 +109,8 @@
             </div>
         </div>
 
-        <!-- Map Placeholder -->
-        <div class="driver-map">
-            <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: #f0f0f0; color: #666;">
-                <div style="text-align: center;">
-                    <div style="font-size: 3rem; margin-bottom: 1rem;">🗺️</div>
-                    <p>الخريطة ستظهر هنا</p>
-                </div>
-            </div>
-        </div>
+        <!-- Map Container -->
+        <div id="map" class="driver-map" aria-label="خريطة المناطق" role="application"></div>
 
         <!-- Bottom Panel -->
         <div class="bottom-panel">
@@ -105,8 +124,18 @@
             <div class="tab-content active" id="zones-tab">
                 <div class="zones-header">
                     <h3>المناطق المتاحة</h3>
+                    <div class="zones-filter">
+                        <select id="zone-sort" class="filter-select">
+                            <option value="demand">حسب الطلب</option>
+                            <option value="distance">حسب المسافة</option>
+                            <option value="name">حسب الاسم</option>
+                        </select>
+                    </div>
                 </div>
-                <div id="zones-grid" class="zones-grid scrollable-content"></div>
+                <!-- إضافة حاوي محسن للسكرولينق -->
+                <div class="zones-grid-wrapper">
+                    <div id="zones-grid" class="zones-grid scrollable-content" aria-label="قائمة المناطق"></div>
+                </div>
             </div>
 
             <!-- Settings Tab -->
@@ -114,20 +143,56 @@
                 <div class="settings-section">
                     <h3>إعدادات الصوت</h3>
                     <div class="setting-item">
-                        <label>تفعيل التنبيهات الصوتية</label>
-                        <input type="checkbox" checked>
+                        <label for="voice-enabled">تفعيل التنبيهات الصوتية</label>
+                        <input type="checkbox" id="voice-enabled" checked>
+                    </div>
+                    <div class="setting-item">
+                        <label for="voice-volume">مستوى الصوت</label>
+                        <input type="range" id="voice-volume" min="0" max="100" value="70">
+                    </div>
+                    <div class="setting-item">
+                        <label for="voice-language">لغة التنبيهات</label>
+                        <select id="voice-language">
+                            <option value="ar">العربية</option>
+                            <option value="en">English</option>
+                        </select>
                     </div>
                 </div>
                 
                 <div class="settings-section">
                     <h3>إعدادات القيادة</h3>
                     <div class="setting-item">
-                        <label>وضع الأمان</label>
-                        <input type="checkbox">
+                        <label for="safety-mode-setting">وضع الأمان</label>
+                        <input type="checkbox" id="safety-mode-setting">
                     </div>
                     <div class="setting-item">
-                        <label>التحديث التلقائي</label>
-                        <input type="checkbox" checked>
+                        <label for="auto-refresh">التحديث التلقائي</label>
+                        <input type="checkbox" id="auto-refresh" checked>
+                    </div>
+                    <div class="setting-item">
+                        <label for="map-style-setting">نمط الخريطة</label>
+                        <select id="map-style-setting">
+                            <option value="osm">عادي</option>
+                            <option value="satellite">قمر صناعي</option>
+                            <option value="dark">داكن</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>إعدادات العرض</h3>
+                    <div class="setting-item">
+                        <label for="auto-switch-text">التبديل التلقائي للنص أثناء القيادة</label>
+                        <input type="checkbox" id="auto-switch-text">
+                    </div>
+                    <div class="setting-item">
+                        <label for="text-mode-speed">سرعة التبديل التلقائي (كم/س)</label>
+                        <input type="range" id="text-mode-speed" min="20" max="60" value="30">
+                        <span id="speed-display">30</span>
+                    </div>
+                    <div class="setting-item">
+                        <label for="enhanced-voice-text">تعليمات صوتية محسنة في وضع النص</label>
+                        <input type="checkbox" id="enhanced-voice-text" checked>
                     </div>
                 </div>
             </div>
@@ -139,33 +204,190 @@
                     <div class="debug-grid">
                         <div class="debug-item">
                             <span class="debug-label">حالة التطبيق:</span>
-                            <span class="debug-value">جاهز</span>
+                            <span id="app-state" class="debug-value">تهيئة</span>
+                        </div>
+                        <div class="debug-item">
+                            <span class="debug-label">حالة الموقع:</span>
+                            <span id="location-state" class="debug-value">غير محدد</span>
+                        </div>
+                        <div class="debug-item">
+                            <span class="debug-label">دقة الموقع:</span>
+                            <span id="location-accuracy" class="debug-value">--</span>
                         </div>
                         <div class="debug-item">
                             <span class="debug-label">عدد المناطق:</span>
-                            <span class="debug-value">6</span>
+                            <span id="zones-count" class="debug-value">--</span>
                         </div>
                     </div>
                     <div class="debug-actions">
                         <button id="test-voice" class="debug-btn">اختبار الصوت</button>
                         <button id="force-reload" class="debug-btn">إعادة تحميل</button>
+                        <button id="export-logs" class="debug-btn">تصدير السجلات</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Loading Overlay (مخفي افتراضياً) -->
-        <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <!-- Audio Elements -->
+        <audio id="notification-sound" preload="auto">
+            <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT" type="audio/wav">
+        </audio>
+
+        <!-- Voice Alerts Container -->
+        <div id="voice-alerts" class="voice-alerts" aria-live="polite"></div>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay" style="display: flex;">
             <div class="loading-content">
                 <div class="loading-spinner"></div>
                 <div class="loading-text">جاري تحميل التطبيق...</div>
-                <div style="margin-top: 1rem; font-size: 0.9rem; color: #666;">
+                <div style="margin-top: 1rem; font-size: 0.9rem; color: var(--text-secondary);">
                     يرجى الانتظار...
                 </div>
             </div>
         </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast" class="toast" role="alert" aria-live="assertive"></div>
+
+        <!-- Share Location Modal -->
+        <div id="share-modal" class="share-modal">
+            <div class="share-modal-content">
+                <div class="share-header">
+                    <h3>مشاركة الموقع</h3>
+                    <button id="close-share-modal" class="close-btn">✕</button>
+                </div>
+                
+                <div class="share-tabs">
+                    <button class="share-tab-btn active" data-tab="quick">مشاركة سريعة</button>
+                    <button class="share-tab-btn" data-tab="contacts">جهات الاتصال</button>
+                    <button class="share-tab-btn" data-tab="live">تتبع مباشر</button>
+                </div>
+
+                <!-- Quick Share Tab -->
+                <div class="share-tab-content active" id="quick-share-tab">
+                    <div class="location-preview">
+                        <div class="preview-icon">📍</div>
+                        <div class="preview-info">
+                            <div class="preview-title" id="share-location-name">الموقع الحالي</div>
+                            <div class="preview-details" id="share-location-details">جاري تحديد الموقع...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="share-options">
+                        <button id="share-whatsapp" class="share-option-btn whatsapp">
+                            <span class="share-icon">💬</span>
+                            <span class="share-text">WhatsApp</span>
+                        </button>
+                        <button id="share-telegram" class="share-option-btn telegram">
+                            <span class="share-icon">✈️</span>
+                            <span class="share-text">Telegram</span>
+                        </button>
+                        <button id="share-sms" class="share-option-btn sms">
+                            <span class="share-icon">💬</span>
+                            <span class="share-text">رسالة نصية</span>
+                        </button>
+                        <button id="share-copy" class="share-option-btn copy">
+                            <span class="share-icon">📋</span>
+                            <span class="share-text">نسخ الرابط</span>
+                        </button>
+                        <button id="share-email" class="share-option-btn email">
+                            <span class="share-icon">📧</span>
+                            <span class="share-text">بريد إلكتروني</span>
+                        </button>
+                        <button id="share-maps" class="share-option-btn maps">
+                            <span class="share-icon">🗺️</span>
+                            <span class="share-text">خرائط جوجل</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Contacts Tab -->
+                <div class="share-tab-content" id="contacts-share-tab">
+                    <div class="contacts-header">
+                        <input type="text" id="contact-search" placeholder="البحث في جهات الاتصال..." class="contact-search">
+                        <button id="add-contact" class="add-contact-btn">+ إضافة جهة اتصال</button>
+                    </div>
+                    <!-- إضافة حاوي محسن للسكرولينق -->
+                    <div class="contacts-wrapper">
+                        <div id="favorite-contacts" class="favorite-contacts scrollable-content"></div>
+                    </div>
+                </div>
+
+                <!-- Live Tracking Tab -->
+                <div class="share-tab-content" id="live-share-tab">
+                    <div class="live-tracking-info">
+                        <div class="live-icon">📡</div>
+                        <h4>التتبع المباشر</h4>
+                        <p>مشاركة موقعك المباشر مع الآخرين لفترة محددة</p>
+                    </div>
+                    
+                    <div class="live-options">
+                        <div class="duration-selector">
+                            <label>مدة المشاركة:</label>
+                            <select id="share-duration">
+                                <option value="15">15 دقيقة</option>
+                                <option value="30" selected>30 دقيقة</option>
+                                <option value="60">ساعة واحدة</option>
+                                <option value="120">ساعتان</option>
+                                <option value="480">8 ساعات</option>
+                            </select>
+                        </div>
+                        
+                        <div class="privacy-options">
+                            <label>
+                                <input type="checkbox" id="include-destination" checked>
+                                تضمين الوجهة المقترحة
+                            </label>
+                            <label>
+                                <input type="checkbox" id="show-route">
+                                عرض المسار المتبع
+                            </label>
+                        </div>
+                        
+                        <button id="start-live-share" class="start-live-btn">بدء المشاركة المباشرة</button>
+                    </div>
+                    
+                    <div id="active-shares" class="active-shares"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Contact Modal -->
+        <div id="add-contact-modal" class="add-contact-modal">
+            <div class="add-contact-content">
+                <div class="add-contact-header">
+                    <h3>إضافة جهة اتصال</h3>
+                    <button id="close-add-contact" class="close-btn">✕</button>
+                </div>
+                <form id="add-contact-form">
+                    <div class="form-group">
+                        <label for="contact-name">الاسم:</label>
+                        <input type="text" id="contact-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="contact-phone">رقم الهاتف:</label>
+                        <input type="tel" id="contact-phone" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="contact-type">النوع:</label>
+                        <select id="contact-type">
+                            <option value="customer">عميل</option>
+                            <option value="family">عائلة</option>
+                            <option value="friend">صديق</option>
+                            <option value="work">عمل</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="save-contact-btn">حفظ</button>
+                        <button type="button" id="cancel-add-contact" class="cancel-btn">إلغاء</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
+    <script src="https://unpkg.com/maplibre-gl@4.0.2/dist/maplibre-gl.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

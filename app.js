@@ -22,6 +22,11 @@ class AmmanDriverGuide {
     this.navigationActive = false
     this.enhancedVoiceInTextMode = false
 
+    // Bootstrap components
+    this.toastElement = null
+    this.shareModal = null
+    this.addContactModal = null
+
     // Audio system
     this.audioContext = null
     this.voiceQueue = []
@@ -30,10 +35,10 @@ class AmmanDriverGuide {
     this.voices = []
 
     // Driver-specific settings
-    this.locationUpdateFrequency = 5000 // 5 seconds for drivers
-    this.highAccuracyThreshold = 10 // Higher accuracy for drivers
-    this.movementDetectionThreshold = 5 // Lower threshold for movement
-    this.maxLocationAge = 15000 // 15 seconds max age
+    this.locationUpdateFrequency = 5000
+    this.highAccuracyThreshold = 100
+    this.movementDetectionThreshold = 5
+    this.maxLocationAge = 15000
 
     // Map styles optimized for driving
     this.mapStyles = {
@@ -94,33 +99,42 @@ class AmmanDriverGuide {
     }
 
     // View mode settings
-    this.viewMode = "map" // "map" or "text"
+    this.viewMode = "map"
     this.autoSwitchToText = false
-    this.textModeSpeed = 30 // km/h - switch to text mode above this speed
+    this.textModeSpeed = 30
     this.lastKnownAddress = ""
     this.directionInstructions = ""
 
     // Share system
-    this.shareModal = null
-    this.addContactModal = null
     this.favoriteContacts = []
     this.activeShares = new Map()
     this.shareId = 0
 
     this.logExecution("🚗 Driver-optimized system initialized", "info")
+    this.initializeBootstrapComponents()
     this.initializeAudioSystem()
-    this.checkBrowserCompatibility()
+  }
+
+  initializeBootstrapComponents() {
+    // Initialize Bootstrap tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    tooltipTriggerList.map((tooltipTriggerEl) => new bootstrap.Tooltip(tooltipTriggerEl))
+
+    // Initialize Bootstrap modals
+    this.shareModal = new bootstrap.Modal(document.getElementById("shareModal"))
+    this.addContactModal = new bootstrap.Modal(document.getElementById("addContactModal"))
+
+    // Initialize Bootstrap toast
+    this.toastElement = new bootstrap.Toast(document.getElementById("toast"))
+
+    this.logExecution("✅ Bootstrap components initialized", "success")
   }
 
   async initializeAudioSystem() {
     try {
-      // Initialize Web Audio API
       this.audioContext = new (window.AudioContext || window.webkitAudioContext)()
-
-      // Load available voices
       this.loadVoices()
 
-      // Listen for voice changes
       if (this.speechSynthesis) {
         this.speechSynthesis.addEventListener("voiceschanged", () => {
           this.loadVoices()
@@ -168,16 +182,10 @@ class AmmanDriverGuide {
     const alert = this.voiceQueue.shift()
 
     try {
-      // Show visual alert
       this.showVoiceAlert(alert.message)
-
-      // Play audio notification
       this.playNotificationSound()
-
-      // Speak the message
       await this.speakMessage(alert.message)
 
-      // Process next in queue
       setTimeout(() => {
         this.processVoiceQueue()
       }, 500)
@@ -195,8 +203,6 @@ class AmmanDriverGuide {
       }
 
       const utterance = new SpeechSynthesisUtterance(message)
-
-      // Find Arabic voice if available
       const arabicVoice = this.voices.find((voice) => voice.lang.includes("ar") || voice.name.includes("Arabic"))
 
       if (arabicVoice) {
@@ -204,7 +210,7 @@ class AmmanDriverGuide {
       }
 
       utterance.volume = this.voiceVolume
-      utterance.rate = 0.9 // Slightly slower for clarity
+      utterance.rate = 0.9
       utterance.pitch = 1.0
 
       utterance.onend = () => resolve()
@@ -238,90 +244,18 @@ class AmmanDriverGuide {
     }, 3000)
   }
 
-  checkBrowserCompatibility() {
-    this.logExecution("🔍 Checking driver-optimized compatibility...", "info")
-
-    const checks = {
-      webgl: this.checkWebGLSupport(),
-      geolocation: !!navigator.geolocation,
-      fetch: !!window.fetch,
-      localStorage: !!window.localStorage,
-      maplibre: !!window.maplibregl,
-      speechSynthesis: !!window.speechSynthesis,
-      audioContext: !!(window.AudioContext || window.webkitAudioContext),
-      vibration: !!navigator.vibrate,
-      wakeLock: "wakeLock" in navigator,
-    }
-
-    this.logExecution(`Driver compatibility: ${JSON.stringify(checks)}`, "info")
-
-    if (!checks.webgl) {
-      this.showToast("متصفحك لا يدعم WebGL المطلوب للخريطة", "error")
-      return false
-    }
-
-    if (!checks.geolocation) {
-      this.showToast("متصفحك لا يدعم تحديد الموقع", "error")
-      return false
-    }
-
-    if (!checks.speechSynthesis) {
-      this.logExecution("⚠️ Speech synthesis not supported - voice alerts disabled", "warning")
-      this.voiceEnabled = false
-    }
-
-    return true
-  }
-
-  checkWebGLSupport() {
-    try {
-      const canvas = document.createElement("canvas")
-      const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl")
-      return !!gl
-    } catch (e) {
-      return false
-    }
-  }
-
-  async checkGeolocationPermission() {
-    try {
-      const permission = await navigator.permissions.query({ name: "geolocation" })
-      this.logExecution(`📍 Geolocation permission status: ${permission.state}`, "info")
-      this.updateDebugState("location-state", permission.state)
-
-      permission.addEventListener("change", () => {
-        this.logExecution(`📍 Permission changed to: ${permission.state}`, "info")
-        this.updateDebugState("location-state", permission.state)
-        if (permission.state === "granted") {
-          this.getCurrentLocation()
-        }
-      })
-    } catch (error) {
-      this.logExecution(`⚠️ Permission API error: ${error.message}`, "warning")
-    }
-  }
-
   async init() {
     try {
       this.showLoadingOverlay("جاري تحميل التطبيق...")
       this.logExecution("🚗 Starting driver-optimized initialization...", "info")
 
-      // Load user preferences
       this.loadUserPreferences()
-
-      // Initialize core systems
       await this.loadZones()
       await this.initMap()
       this.setupEventListeners()
       this.setupDriverInterface()
-
-      // Start location tracking
       this.startLocationTracking()
-
-      // Update demand mode
       this.updateDemandMode()
-
-      // Set initial view mode
       this.updateViewMode()
 
       this.isInitialized = true
@@ -337,75 +271,23 @@ class AmmanDriverGuide {
     }
   }
 
-  handleLoadingTimeout() {
-    this.logExecution("⏰ Loading timeout reached", "error")
-    this.showToast("انتهت مهلة التحميل. جاري المحاولة مرة أخرى...", "warning")
-
-    const failedSteps = Object.entries(this.initializationSteps)
-      .filter(([step, completed]) => !completed)
-      .map(([step]) => step)
-
-    this.logExecution(`Failed steps: ${failedSteps.join(", ")}`, "error")
-    this.forceReload()
-  }
-
   async loadZones() {
     try {
-      this.logExecution("📊 Loading enhanced zones database...", "info")
-
+      this.logExecution("📊 Loading zones database...", "info")
       const response = await fetch("zones.json")
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
 
       const data = await response.json()
       this.zones = data
-
-      this.logExecution(`✅ Loaded ${this.zones.length} zones with enhanced data`, "success")
+      this.logExecution(`✅ Loaded ${this.zones.length} zones`, "success")
       this.updateDebugInfo("zones-count", this.zones.length)
     } catch (error) {
-      this.logExecution(`⚠️ Using fallback zones data: ${error.message}`, "warning")
+      this.logExecution(`⚠️ Using fallback zones: ${error.message}`, "warning")
       this.zones = this.getFallbackZones()
     }
-  }
-
-  validateZoneData() {
-    this.logExecution("🔍 Validating zone data structure...", "info")
-
-    const requiredFields = ["name", "lat", "lng", "density_peak", "density_off"]
-    let validZones = 0
-    let invalidZones = 0
-
-    this.zones = this.zones.filter((zone) => {
-      const hasRequiredFields = requiredFields.every((field) => zone.hasOwnProperty(field))
-
-      const hasValidCoordinates =
-        typeof zone.lat === "number" &&
-        typeof zone.lng === "number" &&
-        zone.lat >= -90 &&
-        zone.lat <= 90 &&
-        zone.lng >= -180 &&
-        zone.lng <= 180
-
-      const hasValidDensity =
-        typeof zone.density_peak === "number" &&
-        typeof zone.density_off === "number" &&
-        zone.density_peak >= 0 &&
-        zone.density_off >= 0
-
-      const isValid = hasRequiredFields && hasValidCoordinates && hasValidDensity
-
-      if (isValid) {
-        validZones++
-      } else {
-        invalidZones++
-        this.logExecution(`⚠️ Invalid zone data: ${JSON.stringify(zone)}`, "warning")
-      }
-
-      return isValid
-    })
-
-    this.logExecution(`✅ Validated ${validZones} zones (${invalidZones} invalid zones removed)`, "success")
   }
 
   getFallbackZones() {
@@ -446,7 +328,7 @@ class AmmanDriverGuide {
   async initMap() {
     return new Promise((resolve, reject) => {
       try {
-        this.logExecution("🗺️ Initializing driver-optimized map...", "info")
+        this.logExecution("🗺️ Initializing map...", "info")
 
         const mapContainer = document.getElementById("map")
         if (mapContainer) {
@@ -460,11 +342,10 @@ class AmmanDriverGuide {
           zoom: 13,
           minZoom: 11,
           maxZoom: 18,
-          attributionControl: false, // Cleaner for drivers
+          attributionControl: false,
           logoPosition: "bottom-left",
         })
 
-        // Add driver-optimized controls
         this.map.addControl(
           new maplibregl.NavigationControl({
             showCompass: true,
@@ -477,7 +358,7 @@ class AmmanDriverGuide {
         this.map.on("load", () => {
           this.setupMapSources()
           this.updateZoneMarkers()
-          this.logExecution("✅ Driver map ready", "success")
+          this.logExecution("✅ Map ready", "success")
           resolve()
         })
 
@@ -493,7 +374,6 @@ class AmmanDriverGuide {
   }
 
   setupMapSources() {
-    // Enhanced sources for driver needs
     this.map.addSource("zones", {
       type: "geojson",
       data: { type: "FeatureCollection", features: [] },
@@ -504,19 +384,12 @@ class AmmanDriverGuide {
       data: { type: "FeatureCollection", features: [] },
     })
 
-    this.map.addSource("route", {
-      type: "geojson",
-      data: { type: "FeatureCollection", features: [] },
-    })
-
-    // Enhanced zone visualization
     this.map.addLayer({
       id: "zones-layer",
       type: "circle",
       source: "zones",
       paint: {
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 12, 15, 20, 18, 30],
-        "circle-color": ["case", [">=", ["get", "density"], 7], "#4CAF50", 11, 12, 15, 20, 18, 30],
         "circle-color": [
           "case",
           [">=", ["get", "density"], 7],
@@ -531,7 +404,6 @@ class AmmanDriverGuide {
       },
     })
 
-    // Current location with enhanced visibility
     this.map.addLayer({
       id: "current-location-layer",
       type: "circle",
@@ -545,19 +417,6 @@ class AmmanDriverGuide {
       },
     })
 
-    // Route layer for navigation
-    this.map.addLayer({
-      id: "route-layer",
-      type: "line",
-      source: "route",
-      paint: {
-        "line-color": "#4361ee",
-        "line-width": 6,
-        "line-opacity": 0.8,
-      },
-    })
-
-    // Enhanced click handlers for driver interaction
     this.map.on("click", "zones-layer", (e) => {
       const feature = e.features[0]
       const zone = this.zones.find((z) => z.name === feature.properties.name)
@@ -568,7 +427,7 @@ class AmmanDriverGuide {
   }
 
   setupEventListeners() {
-    this.logExecution("🎛️ Setting up driver interface events...", "info")
+    this.logExecution("🎛️ Setting up event listeners...", "info")
 
     // Voice toggle
     document.getElementById("voice-toggle").addEventListener("click", () => {
@@ -600,18 +459,21 @@ class AmmanDriverGuide {
     })
 
     document.getElementById("voice-navigation").addEventListener("click", () => {
-      this.toggleVoiceNavigation()
+      this.showToast("التوجيه الصوتي قيد التطوير", "info")
     })
 
     document.getElementById("safety-mode").addEventListener("click", (e) => {
       this.toggleSafetyMode(e.target)
     })
 
-    // Tab navigation
-    document.querySelectorAll(".tab-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        this.switchTab(e.target.dataset.tab)
-      })
+    // View toggle
+    document.getElementById("view-toggle").addEventListener("click", () => {
+      this.toggleViewMode()
+    })
+
+    // Share location
+    document.getElementById("share-location").addEventListener("click", () => {
+      this.openShareModal()
     })
 
     // Settings
@@ -658,14 +520,6 @@ class AmmanDriverGuide {
       this.exportLogs()
     })
 
-    // Keyboard shortcuts for drivers
-    document.addEventListener("keydown", (e) => {
-      this.handleKeyboardShortcuts(e)
-    })
-
-    // Setup view toggle
-    this.setupViewToggle()
-
     // View mode settings
     document.getElementById("auto-switch-text").addEventListener("change", (e) => {
       this.autoSwitchToText = e.target.checked
@@ -686,25 +540,20 @@ class AmmanDriverGuide {
     // Share system
     this.setupShareSystem()
 
-    this.logExecution("✅ Driver interface events configured", "success")
+    this.logExecution("✅ Event listeners configured", "success")
   }
 
   setupDriverInterface() {
-    // Initialize tabs
-    this.switchTab("zones")
-
-    // Set initial settings
     this.updateVoiceButton()
     this.updateSafetyMode()
 
-    // Start auto-refresh if enabled
     if (this.autoRefresh) {
       setInterval(() => {
         if (this.isInitialized) {
           this.updateDemandMode()
           this.refreshSuggestion()
         }
-      }, 60000) // Every minute
+      }, 60000)
     }
   }
 
@@ -722,12 +571,18 @@ class AmmanDriverGuide {
 
   updateVoiceButton() {
     const btn = document.getElementById("voice-toggle")
+    const icon = btn.querySelector("i")
+
     if (this.voiceEnabled) {
       btn.classList.remove("muted")
-      btn.textContent = "🔊"
+      btn.classList.remove("btn-secondary")
+      btn.classList.add("btn-success")
+      icon.className = "bi bi-volume-up fs-5"
     } else {
       btn.classList.add("muted")
-      btn.textContent = "🔇"
+      btn.classList.remove("btn-success")
+      btn.classList.add("btn-secondary")
+      icon.className = "bi bi-volume-mute fs-5"
     }
   }
 
@@ -735,12 +590,10 @@ class AmmanDriverGuide {
     this.playVoiceAlert("تم تفعيل وضع الطوارئ", "urgent")
     this.showToast("تم تفعيل وضع الطوارئ", "error")
 
-    // Vibrate if supported
     if (navigator.vibrate) {
       navigator.vibrate([200, 100, 200, 100, 200])
     }
 
-    // Could integrate with emergency services API here
     this.logExecution("🚨 Emergency mode activated", "error")
   }
 
@@ -750,58 +603,30 @@ class AmmanDriverGuide {
       return
     }
 
-    // Show confirmation dialog
-    const confirmNavigation = confirm(`هل تريد فتح التنقل إلى ${this.suggestedZone.name}؟`)
+    const zone = this.suggestedZone
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${zone.lat},${zone.lng}&travelmode=driving`
 
-    if (!confirmNavigation) return
+    window.open(url, "_blank")
+    this.showToast(`جاري التوجه إلى ${zone.name}`, "success")
+    this.logExecution(`🧭 Navigation started to ${zone.name}`, "info")
 
-    this.navigationActive = true
-
-    // Enhanced navigation options
-    const navigationOptions = [
-      {
-        name: "خرائط جوجل",
-        url: `https://www.google.com/maps/dir/?api=1&destination=${this.suggestedZone.lat},${this.suggestedZone.lng}&travelmode=driving`,
-      },
-      {
-        name: "Waze",
-        url: `https://waze.com/ul?ll=${this.suggestedZone.lat},${this.suggestedZone.lng}&navigate=yes`,
-      },
-    ]
-
-    // Try to open preferred navigation app
-    const preferredApp = localStorage.getItem("preferredNavigationApp") || "google"
-    const selectedOption =
-      navigationOptions.find((opt) => opt.name.toLowerCase().includes(preferredApp)) || navigationOptions[0]
-
-    window.open(selectedOption.url, "_blank")
-
-    // Enhanced feedback
-    const distance = this.getDistanceToZone(this.suggestedZone)
-    this.playVoiceAlert(`جاري التوجه إلى ${this.suggestedZone.name}. المسافة المقدرة ${distance}`)
-    this.showToast(`جاري التوجه إلى ${this.suggestedZone.name}`, "success")
-    this.logExecution(`🧭 Navigation started to ${this.suggestedZone.name}`, "info")
-
-    // Update navigation state
     this.updateNavigationState(true)
   }
 
-  // إضافة دالة لتحديث حالة التنقل
   updateNavigationState(isNavigating) {
     const navigateBtn = document.getElementById("navigate-btn")
 
     if (isNavigating) {
-      navigateBtn.textContent = "🧭 جاري التنقل..."
+      navigateBtn.innerHTML = '<i class="bi bi-navigation me-2"></i>جاري التنقل...'
       navigateBtn.classList.add("navigating")
 
-      // Auto-switch to text mode for safer driving
       if (this.viewMode === "map") {
         this.viewMode = "text"
         this.updateViewMode()
         this.playVoiceAlert("تم التبديل إلى وضع النص للقيادة الآمنة")
       }
     } else {
-      navigateBtn.textContent = "🧭 توجه الآن"
+      navigateBtn.innerHTML = '<i class="bi bi-navigation me-2"></i>توجه الآن'
       navigateBtn.classList.remove("navigating")
     }
   }
@@ -839,11 +664,6 @@ class AmmanDriverGuide {
     this.showToast(message, "info")
   }
 
-  toggleVoiceNavigation() {
-    // Toggle voice navigation mode
-    this.showToast("التوجيه الصوتي قيد التطوير", "info")
-  }
-
   toggleSafetyMode(button) {
     this.safetyMode = !this.safetyMode
     button.classList.toggle("active", this.safetyMode)
@@ -856,7 +676,6 @@ class AmmanDriverGuide {
 
   updateSafetyMode() {
     if (this.safetyMode) {
-      // Reduce distractions
       document.body.classList.add("safety-mode")
       this.voiceEnabled = true
       this.updateVoiceButton()
@@ -865,48 +684,24 @@ class AmmanDriverGuide {
     }
   }
 
-  switchTab(tabName) {
-    // Hide all tabs
-    document.querySelectorAll(".tab-content").forEach((tab) => {
-      tab.classList.remove("active")
-    })
-
-    document.querySelectorAll(".tab-btn").forEach((btn) => {
-      btn.classList.remove("active")
-    })
-
-    // Show selected tab
-    document.getElementById(`${tabName}-tab`).classList.add("active")
-    document.querySelector(`[data-tab="${tabName}"]`).classList.add("active")
-
-    this.currentTab = tabName
-  }
-
   selectZone(zone) {
     this.suggestedZone = zone
     this.updateSuggestedZoneDisplay()
 
-    // Enable navigation button
     document.getElementById("navigate-btn").disabled = false
 
-    // Highlight on map with smooth animation
     this.highlightZoneOnMap(zone)
 
-    // Auto-switch to map view when zone is selected for better visualization
     if (this.viewMode === "text") {
       this.viewMode = "map"
       this.updateViewMode()
       this.showToast("تم التبديل إلى عرض الخريطة لإظهار المنطقة المختارة", "info")
     }
 
-    // Enhanced voice feedback
     this.playVoiceAlert(`تم اختيار ${zone.name} كمنطقة مقترحة. المسافة ${this.getDistanceToZone(zone)}`)
-
-    // Visual feedback
     this.showToast(`تم اختيار ${zone.name}`, "success")
   }
 
-  // إضافة دالة مساعدة لحساب المسافة
   getDistanceToZone(zone) {
     if (!this.currentLocation) return "غير محددة"
 
@@ -931,9 +726,8 @@ class AmmanDriverGuide {
     document.getElementById("suggested-zone-display").textContent = zone.name
     document.getElementById("demand-level").textContent = density
 
-    // Update demand indicator
     const indicator = document.getElementById("demand-indicator")
-    indicator.className = "demand-indicator " + this.getDemandLevel(density)
+    indicator.className = `demand-indicator bg-${this.getDemandBootstrapClass(density)} text-white rounded-circle d-flex align-items-center justify-content-center`
 
     if (this.currentLocation) {
       const distance =
@@ -942,7 +736,6 @@ class AmmanDriverGuide {
       document.getElementById("suggested-distance").textContent =
         distance < 1 ? `${Math.round(distance * 1000)} م` : `${distance.toFixed(1)} كم`
 
-      // Estimate ETA (assuming 30 km/h average in city)
       const eta = Math.round((distance / 30) * 60)
       document.getElementById("suggested-eta").textContent = eta < 1 ? "< 1 دقيقة" : `${eta} دقيقة`
     }
@@ -954,7 +747,7 @@ class AmmanDriverGuide {
       return
     }
 
-    this.logExecution("🔄 Starting enhanced location tracking for drivers...", "info")
+    this.logExecution("🔄 Starting location tracking...", "info")
 
     const options = {
       enableHighAccuracy: true,
@@ -983,7 +776,6 @@ class AmmanDriverGuide {
       speed: position.coords.speed,
     }
 
-    // Validate location
     if (this.validateLocationAccuracy(newLocation)) {
       const hasMovedSignificantly = this.detectSignificantMovement(newLocation)
 
@@ -993,21 +785,19 @@ class AmmanDriverGuide {
         this.updateCurrentLocationOnMap()
         this.updateSuggestedZone()
 
-        // Update debug info
         this.updateDebugInfo("location-accuracy", `${Math.round(newLocation.accuracy)}م`)
         this.updateDebugInfo("location-state", "نشط")
 
-        // Update location display if in text mode
         if (this.viewMode === "text") {
           this.updateLocationDisplay()
-          this.updateDirectionInstructions()
         }
 
-        // Reverse geocode for better address display
-        if (hasMovedSignificantly) {
-          this.reverseGeocode(newLocation.lat, newLocation.lng)
+        if (this.autoSwitchToText && newLocation.speed && newLocation.speed * 3.6 > this.textModeSpeed) {
+          this.switchViewMode("text")
         }
       }
+    } else {
+      this.logExecution(`📍 Location update ignored due to low accuracy: ${newLocation.accuracy}m`, "warning")
     }
   }
 
@@ -1028,19 +818,12 @@ class AmmanDriverGuide {
         break
     }
 
-    this.showToast(message, "error")
-    this.playVoiceAlert(message, "urgent")
+    this.showToast(message, "warning")
+    this.updateCurrentLocationDisplay()
   }
 
   validateLocationAccuracy(location) {
-    return (
-      location.accuracy &&
-      location.accuracy <= 100 &&
-      location.lat >= -90 &&
-      location.lat <= 90 &&
-      location.lng >= -180 &&
-      location.lng <= 180
-    )
+    return location.accuracy <= this.highAccuracyThreshold
   }
 
   detectSignificantMovement(newLocation) {
@@ -1062,14 +845,12 @@ class AmmanDriverGuide {
       return
     }
 
-    // Find nearest zone for display
     const nearest = this.findNearestZone(this.currentLocation)
     if (nearest) {
       const distance =
         this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, nearest.lat, nearest.lng) / 1000
 
       const distanceText = distance < 1 ? `${Math.round(distance * 1000)} م` : `${distance.toFixed(1)} كم`
-
       document.getElementById("current-area-display").textContent = `${nearest.name} (${distanceText})`
     } else {
       document.getElementById("current-area-display").textContent = "منطقة غير معروفة"
@@ -1095,7 +876,6 @@ class AmmanDriverGuide {
       features: [locationFeature],
     })
 
-    // Center map on location
     this.map.flyTo({
       center: [this.currentLocation.lng, this.currentLocation.lat],
       zoom: 15,
@@ -1111,13 +891,11 @@ class AmmanDriverGuide {
       this.suggestedZone = suggestion
       this.updateSuggestedZoneDisplay()
 
-      // Announce new suggestion if it changed
       if (!this.previousSuggestion || this.previousSuggestion.name !== suggestion.name) {
         this.playVoiceAlert(`المنطقة المقترحة الجديدة: ${suggestion.name}`)
         this.previousSuggestion = suggestion
       }
 
-      // Update direction instructions in text mode
       if (this.viewMode === "text") {
         this.updateDirectionInstructions()
 
@@ -1143,7 +921,6 @@ class AmmanDriverGuide {
       density: this.getCurrentDensity(zone),
     }))
 
-    // Sort by combination of demand and distance
     zonesWithDistance.sort((a, b) => {
       const scoreA = a.density * 1000 - a.distance
       const scoreB = b.density * 1000 - b.distance
@@ -1212,8 +989,22 @@ class AmmanDriverGuide {
     const filteredZones = this.getFilteredZones()
     const sortedZones = this.sortZonesByCurrentCriteria(filteredZones)
 
-    sortedZones.forEach((zone) => {
+    if (sortedZones.length === 0) {
+      container.innerHTML = `
+        <div class="col-12">
+          <div class="text-center py-4 text-muted">
+            <i class="bi bi-map display-4 mb-3"></i>
+            <p>لا توجد مناطق متاحة</p>
+          </div>
+        </div>
+      `
+      return
+    }
+
+    sortedZones.forEach((zone, index) => {
       const card = this.createZoneCard(zone)
+      card.style.animationDelay = `${index * 0.1}s`
+      card.classList.add("fade-in")
       container.appendChild(card)
     })
   }
@@ -1222,35 +1013,52 @@ class AmmanDriverGuide {
     const density = this.getCurrentDensity(zone)
     const demandLevel = this.getDemandLevel(density)
     const demandText = this.getDemandText(demandLevel)
+    const bootstrapClass = this.getDemandBootstrapClass(density)
 
-    const card = document.createElement("div")
-    card.className = `zone-card ${demandLevel}-demand`
+    const col = document.createElement("div")
+    col.className = "col-12 col-md-6 col-lg-4"
 
-    let distanceText = ""
+    let distanceText = "--"
     if (this.currentLocation) {
       const distance =
         this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, zone.lat, zone.lng) / 1000
-
       distanceText = distance < 1 ? `${Math.round(distance * 1000)} م` : `${distance.toFixed(1)} كم`
     }
 
-    card.innerHTML = `
-    <div class="zone-card-header">
-      <div class="zone-name">${zone.name}</div>
-      <div class="zone-demand-badge ${demandLevel}">${demandText}</div>
-    </div>
-    <div class="zone-info">
-      <span>الطلب: ${density}</span>
-      <span>${distanceText}</span>
-    </div>
-    ${zone.safety_rating ? `<div class="zone-safety">الأمان: ${zone.safety_rating}/10</div>` : ""}
-  `
+    col.innerHTML = `
+      <div class="card zone-card h-100 border-0 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="card-title mb-0 fw-bold">${zone.name}</h6>
+            <span class="badge bg-${bootstrapClass} zone-demand-badge">${demandText}</span>
+          </div>
+          <div class="row g-2 text-muted small">
+            <div class="col-auto">
+              <i class="bi bi-bullseye me-1"></i>الطلب: ${density}
+            </div>
+            <div class="col-auto">
+              <i class="bi bi-geo me-1"></i>${distanceText}
+            </div>
+            ${
+              zone.safety_rating
+                ? `
+              <div class="col-12">
+                <i class="bi bi-shield-check me-1 text-success"></i>الأمان: ${zone.safety_rating}/10
+              </div>
+            `
+                : ""
+            }
+          </div>
+        </div>
+      </div>
+    `
 
+    const card = col.querySelector(".zone-card")
     card.addEventListener("click", () => {
       this.selectZone(zone)
     })
 
-    return card
+    return col
   }
 
   sortZonesByCurrentCriteria(zones) {
@@ -1305,6 +1113,12 @@ class AmmanDriverGuide {
     }
   }
 
+  getDemandBootstrapClass(density) {
+    if (density >= 7) return "success"
+    if (density >= 4) return "warning"
+    return "danger"
+  }
+
   updateDemandMode() {
     const hour = new Date().getHours()
     const isPeakTime = (hour >= 11 && hour <= 14) || (hour >= 17 && hour <= 21)
@@ -1320,7 +1134,6 @@ class AmmanDriverGuide {
   highlightZoneOnMap(zone) {
     if (!this.map) return
 
-    // Smooth fly animation to the selected zone
     this.map.flyTo({
       center: [zone.lng, zone.lat],
       zoom: 16,
@@ -1328,19 +1141,15 @@ class AmmanDriverGuide {
       essential: true,
     })
 
-    // Add temporary highlight marker
     this.addTemporaryHighlight(zone)
   }
 
-  // إضافة دالة لإضافة تمييز مؤقت
   addTemporaryHighlight(zone) {
-    // Remove existing highlight
     if (this.map.getLayer("zone-highlight")) {
       this.map.removeLayer("zone-highlight")
       this.map.removeSource("zone-highlight")
     }
 
-    // Add highlight source and layer
     this.map.addSource("zone-highlight", {
       type: "geojson",
       data: {
@@ -1366,7 +1175,6 @@ class AmmanDriverGuide {
       },
     })
 
-    // Remove highlight after 3 seconds
     setTimeout(() => {
       if (this.map.getLayer("zone-highlight")) {
         this.map.removeLayer("zone-highlight")
@@ -1425,32 +1233,8 @@ class AmmanDriverGuide {
     this.playVoiceAlert("اختبار النظام الصوتي. النظام يعمل بشكل صحيح")
   }
 
-  handleKeyboardShortcuts(e) {
-    // Driver-friendly keyboard shortcuts
-    if (e.altKey) {
-      switch (e.key) {
-        case "v":
-          e.preventDefault()
-          this.toggleVoice()
-          break
-        case "n":
-          e.preventDefault()
-          this.findNearestZone()
-          break
-        case "r":
-          e.preventDefault()
-          this.refreshSuggestion()
-          break
-        case "s":
-          e.preventDefault()
-          this.toggleSafetyMode(document.getElementById("safety-mode"))
-          break
-      }
-    }
-  }
-
   forceReload() {
-    this.logExecution("🔄 Force reloading driver application...", "info")
+    this.logExecution("🔄 Force reloading application...", "info")
     location.reload()
   }
 
@@ -1477,7 +1261,7 @@ class AmmanDriverGuide {
 
   showLoadingOverlay(message) {
     const overlay = document.getElementById("loading-overlay")
-    const text = overlay.querySelector(".loading-text")
+    const text = overlay.querySelector("h5")
     text.textContent = message
     overlay.style.display = "flex"
   }
@@ -1489,12 +1273,28 @@ class AmmanDriverGuide {
 
   showToast(message, type = "info") {
     const toast = document.getElementById("toast")
-    toast.textContent = message
-    toast.className = `toast ${type} show`
+    const toastBody = toast.querySelector(".toast-body")
 
-    setTimeout(() => {
-      toast.classList.remove("show")
-    }, 4000)
+    // Remove existing classes
+    toast.classList.remove("text-bg-success", "text-bg-danger", "text-bg-warning", "text-bg-info")
+
+    // Add appropriate Bootstrap class
+    switch (type) {
+      case "success":
+        toast.classList.add("text-bg-success")
+        break
+      case "error":
+        toast.classList.add("text-bg-danger")
+        break
+      case "warning":
+        toast.classList.add("text-bg-warning")
+        break
+      default:
+        toast.classList.add("text-bg-info")
+    }
+
+    toastBody.textContent = message
+    this.toastElement.show()
   }
 
   logExecution(message, type = "info") {
@@ -1502,7 +1302,6 @@ class AmmanDriverGuide {
     const logEntry = { timestamp, message, type }
     this.executionLog.push(logEntry)
 
-    // Keep only last 100 entries
     if (this.executionLog.length > 100) {
       this.executionLog.shift()
     }
@@ -1510,31 +1309,14 @@ class AmmanDriverGuide {
     console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`)
   }
 
-  setupViewToggle() {
-    const viewToggleBtn = document.getElementById("view-toggle")
-
-    viewToggleBtn.addEventListener("click", () => {
-      this.toggleViewMode()
-    })
-
-    // Auto-switch based on speed if enabled
-    if (this.autoSwitchToText) {
-      setInterval(() => {
-        this.checkAutoSwitch()
-      }, 2000)
-    }
-  }
-
   toggleViewMode() {
     this.viewMode = this.viewMode === "map" ? "text" : "map"
     this.updateViewMode()
 
     const message = this.viewMode === "text" ? "تم التبديل إلى وضع النص المبسط" : "تم التبديل إلى وضع الخريطة"
-
     this.showToast(message, "info")
     this.playVoiceAlert(message)
 
-    // Save preference
     localStorage.setItem("driverViewMode", this.viewMode)
   }
 
@@ -1543,13 +1325,14 @@ class AmmanDriverGuide {
     const map = document.getElementById("map")
     const locationCard = document.getElementById("location-display-card")
     const viewToggleBtn = document.getElementById("view-toggle")
+    const viewToggleIcon = viewToggleBtn.querySelector("i")
 
     if (this.viewMode === "text") {
       container.classList.add("text-only-mode")
       map.classList.add("minimized")
+      locationCard.classList.remove("d-none")
       locationCard.classList.add("active")
-      viewToggleBtn.classList.add("text-mode")
-      viewToggleBtn.textContent = "📱"
+      viewToggleIcon.className = "bi bi-phone fs-5"
       viewToggleBtn.setAttribute("aria-label", "تبديل إلى وضع الخريطة")
 
       this.updateLocationDisplay()
@@ -1557,13 +1340,12 @@ class AmmanDriverGuide {
     } else {
       container.classList.remove("text-only-mode")
       map.classList.remove("minimized")
+      locationCard.classList.add("d-none")
       locationCard.classList.remove("active")
-      viewToggleBtn.classList.remove("text-mode")
-      viewToggleBtn.textContent = "🗺️"
+      viewToggleIcon.className = "bi bi-map fs-5"
       viewToggleBtn.setAttribute("aria-label", "تبديل إلى وضع النص")
     }
 
-    // Resize map when switching back
     if (this.viewMode === "map" && this.map) {
       setTimeout(() => {
         this.map.resize()
@@ -1579,7 +1361,6 @@ class AmmanDriverGuide {
     const speedInfo = document.getElementById("speed-info")
 
     if (this.currentLocation) {
-      // Update location name
       if (this.lastKnownAddress) {
         locationName.textContent = this.lastKnownAddress
       } else {
@@ -1587,19 +1368,15 @@ class AmmanDriverGuide {
         if (nearest) {
           const distance =
             this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, nearest.lat, nearest.lng) / 1000
-
           const distanceText = distance < 1 ? `${Math.round(distance * 1000)} م` : `${distance.toFixed(1)} كم`
-
           locationName.textContent = `قرب ${nearest.name} (${distanceText})`
         } else {
           locationName.textContent = "موقع غير معروف"
         }
       }
 
-      // Update accuracy
       accuracyInfo.textContent = `${Math.round(this.currentLocation.accuracy)}م`
 
-      // Update speed
       if (this.currentLocation.speed !== null && this.currentLocation.speed !== undefined) {
         const speedKmh = Math.round(this.currentLocation.speed * 3.6)
         speedInfo.textContent = `${speedKmh} كم/س`
@@ -1639,7 +1416,6 @@ class AmmanDriverGuide {
       directionIcon.textContent = this.getDirectionIcon(direction)
 
       const distanceText = distance < 1 ? `${Math.round(distance * 1000)} متر` : `${distance.toFixed(1)} كيلومتر`
-
       directionText.textContent = `اتجه ${direction} نحو ${this.suggestedZone.name} (${distanceText})`
     } else {
       directionIcon.textContent = "🎯"
@@ -1673,7 +1449,6 @@ class AmmanDriverGuide {
 
     for (const dir of directions) {
       if (dir.min > dir.max) {
-        // Handle north direction wrap-around
         if (bearing >= dir.min || bearing <= dir.max) {
           return dir.name
         }
@@ -1702,75 +1477,22 @@ class AmmanDriverGuide {
     return icons[direction] || "➡️"
   }
 
-  checkAutoSwitch() {
-    if (!this.autoSwitchToText || !this.currentLocation) return
-
-    const speed = this.currentLocation.speed
-    if (speed !== null && speed !== undefined) {
-      const speedKmh = speed * 3.6
-
-      if (speedKmh > this.textModeSpeed && this.viewMode === "map") {
-        this.viewMode = "text"
-        this.updateViewMode()
-        this.playVoiceAlert("تم التبديل التلقائي إلى وضع النص للقيادة الآمنة")
-      } else if (speedKmh <= 5 && this.viewMode === "text") {
-        this.viewMode = "map"
-        this.updateViewMode()
-      }
-    }
-  }
-
-  async reverseGeocode(lat, lng) {
-    try {
-      const response = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=ar`,
-      )
-
-      if (response.ok) {
-        const data = await response.json()
-
-        // Extract the most relevant address components
-        const addressComponents = [
-          data.locality,
-          data.localityInfo?.administrative?.[3]?.name,
-          data.localityInfo?.administrative?.[2]?.name,
-          data.city,
-          data.principalSubdivision,
-        ].filter(Boolean)
-
-        if (addressComponents.length > 0) {
-          this.lastKnownAddress = addressComponents[0]
-          this.updateLocationDisplay()
-          return this.lastKnownAddress
-        }
-      }
-    } catch (error) {
-      this.logExecution(`⚠️ Reverse geocoding failed: ${error.message}`, "warning")
-    }
-
-    return null
-  }
-
   loadUserPreferences() {
-    // Load saved view mode
     const savedViewMode = localStorage.getItem("driverViewMode")
     if (savedViewMode && ["map", "text"].includes(savedViewMode)) {
       this.viewMode = savedViewMode
     }
 
-    // Load auto-switch preference
     const autoSwitch = localStorage.getItem("autoSwitchToText")
     if (autoSwitch !== null) {
       this.autoSwitchToText = autoSwitch === "true"
     }
 
-    // Load speed threshold
     const speedThreshold = localStorage.getItem("textModeSpeed")
     if (speedThreshold) {
       this.textModeSpeed = Number.parseInt(speedThreshold)
     }
 
-    // Update UI elements
     document.getElementById("auto-switch-text").checked = this.autoSwitchToText
     document.getElementById("text-mode-speed").value = this.textModeSpeed
     document.getElementById("speed-display").textContent = this.textModeSpeed
@@ -1790,32 +1512,7 @@ class AmmanDriverGuide {
   }
 
   setupShareSystem() {
-    this.shareModal = document.getElementById("share-modal")
-    this.addContactModal = document.getElementById("add-contact-modal")
-
-    // Load saved contacts
     this.loadFavoriteContacts()
-
-    // Share button
-    document.getElementById("share-location").addEventListener("click", () => {
-      this.openShareModal()
-    })
-
-    // Close modals
-    document.getElementById("close-share-modal").addEventListener("click", () => {
-      this.closeShareModal()
-    })
-
-    document.getElementById("close-add-contact").addEventListener("click", () => {
-      this.closeAddContactModal()
-    })
-
-    // Share tabs
-    document.querySelectorAll(".share-tab-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        this.switchShareTab(e.target.dataset.tab)
-      })
-    })
 
     // Share options
     document.getElementById("share-whatsapp").addEventListener("click", () => {
@@ -1842,18 +1539,10 @@ class AmmanDriverGuide {
       this.shareViaGoogleMaps()
     })
 
-    // Add contact
-    document.getElementById("add-contact").addEventListener("click", () => {
-      this.openAddContactModal()
-    })
-
+    // Add contact form
     document.getElementById("add-contact-form").addEventListener("submit", (e) => {
       e.preventDefault()
       this.saveNewContact()
-    })
-
-    document.getElementById("cancel-add-contact").addEventListener("click", () => {
-      this.closeAddContactModal()
     })
 
     // Contact search
@@ -1865,61 +1554,12 @@ class AmmanDriverGuide {
     document.getElementById("start-live-share").addEventListener("click", () => {
       this.startLiveSharing()
     })
-
-    // Close modal on outside click
-    this.shareModal.addEventListener("click", (e) => {
-      if (e.target === this.shareModal) {
-        this.closeShareModal()
-      }
-    })
-
-    this.addContactModal.addEventListener("click", (e) => {
-      if (e.target === this.addContactModal) {
-        this.closeAddContactModal()
-      }
-    })
   }
 
   openShareModal() {
     this.updateShareLocationPreview()
-    this.shareModal.classList.add("show")
+    this.shareModal.show()
     this.playVoiceAlert("فتح نافذة مشاركة الموقع")
-  }
-
-  closeShareModal() {
-    this.shareModal.classList.remove("show")
-  }
-
-  openAddContactModal() {
-    this.addContactModal.classList.add("show")
-    document.getElementById("contact-name").focus()
-  }
-
-  closeAddContactModal() {
-    document.getElementById("add-contact-form").reset()
-    this.addContactModal.classList.remove("show")
-  }
-
-  switchShareTab(tabName) {
-    // Hide all tabs
-    document.querySelectorAll(".share-tab-content").forEach((tab) => {
-      tab.classList.remove("active")
-    })
-
-    document.querySelectorAll(".share-tab-btn").forEach((btn) => {
-      btn.classList.remove("active")
-    })
-
-    // Show selected tab
-    document.getElementById(`${tabName}-share-tab`).classList.add("active")
-    document.querySelector(`[data-tab="${tabName}"]`).classList.add("active")
-
-    // Update content based on tab
-    if (tabName === "contacts") {
-      this.updateContactsList()
-    } else if (tabName === "live") {
-      this.updateActiveShares()
-    }
   }
 
   updateShareLocationPreview() {
@@ -1990,7 +1630,7 @@ class AmmanDriverGuide {
     window.open(url, "_blank")
     this.logExecution("📱 Shared location via WhatsApp", "info")
     this.playVoiceAlert("تم مشاركة الموقع عبر واتساب")
-    this.closeShareModal()
+    this.shareModal.hide()
   }
 
   shareViaTelegram() {
@@ -2001,7 +1641,7 @@ class AmmanDriverGuide {
     window.open(url, "_blank")
     this.logExecution("📱 Shared location via Telegram", "info")
     this.playVoiceAlert("تم مشاركة الموقع عبر تيليجرام")
-    this.closeShareModal()
+    this.shareModal.hide()
   }
 
   shareViaSMS() {
@@ -2012,7 +1652,7 @@ class AmmanDriverGuide {
     window.open(url, "_blank")
     this.logExecution("📱 Shared location via SMS", "info")
     this.playVoiceAlert("تم مشاركة الموقع عبر الرسائل النصية")
-    this.closeShareModal()
+    this.shareModal.hide()
   }
 
   async copyLocationToClipboard() {
@@ -2023,7 +1663,6 @@ class AmmanDriverGuide {
       this.showToast("تم نسخ معلومات الموقع", "success")
       this.playVoiceAlert("تم نسخ معلومات الموقع")
     } catch (error) {
-      // Fallback for older browsers
       const textArea = document.createElement("textarea")
       textArea.value = message
       document.body.appendChild(textArea)
@@ -2036,7 +1675,7 @@ class AmmanDriverGuide {
     }
 
     this.logExecution("📋 Copied location to clipboard", "info")
-    this.closeShareModal()
+    this.shareModal.hide()
   }
 
   shareViaEmail() {
@@ -2050,7 +1689,7 @@ class AmmanDriverGuide {
 
     this.logExecution("📧 Shared location via email", "info")
     this.playVoiceAlert("تم مشاركة الموقع عبر البريد الإلكتروني")
-    this.closeShareModal()
+    this.shareModal.hide()
   }
 
   shareViaGoogleMaps() {
@@ -2064,7 +1703,7 @@ class AmmanDriverGuide {
 
     this.logExecution("🗺️ Opened location in Google Maps", "info")
     this.playVoiceAlert("تم فتح الموقع في خرائط جوجل")
-    this.closeShareModal()
+    this.shareModal.hide()
   }
 
   saveNewContact() {
@@ -2088,7 +1727,10 @@ class AmmanDriverGuide {
     this.favoriteContacts.push(contact)
     this.saveFavoriteContacts()
     this.updateContactsList()
-    this.closeAddContactModal()
+    this.addContactModal.hide()
+
+    // Reset form
+    document.getElementById("add-contact-form").reset()
 
     this.showToast(`تم إضافة ${name} إلى جهات الاتصال`, "success")
     this.playVoiceAlert(`تم إضافة ${name} إلى جهات الاتصال`)
@@ -2101,10 +1743,10 @@ class AmmanDriverGuide {
 
     if (this.favoriteContacts.length === 0) {
       container.innerHTML = `
-        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-          <div style="font-size: 3rem; margin-bottom: 1rem;">👥</div>
+        <div class="text-center py-4 text-muted">
+          <i class="bi bi-people display-4 mb-3"></i>
           <p>لا توجد جهات اتصال محفوظة</p>
-          <p>أضف جهات اتصال للمشاركة السريعة</p>
+          <p class="small">أضف جهات اتصال للمشاركة السريعة</p>
         </div>
       `
       return
@@ -2118,15 +1760,17 @@ class AmmanDriverGuide {
 
   createContactElement(contact) {
     const element = document.createElement("div")
-    element.className = "contact-item"
+    element.className = "contact-item p-3 mb-2 border rounded"
 
     element.innerHTML = `
-      <div class="contact-avatar">${contact.avatar}</div>
-      <div class="contact-info">
-        <div class="contact-name">${contact.name}</div>
-        <div class="contact-phone">${contact.phone}</div>
+      <div class="d-flex align-items-center">
+        <div class="contact-avatar me-3">${contact.avatar}</div>
+        <div class="flex-grow-1">
+          <h6 class="mb-1">${contact.name}</h6>
+          <small class="text-muted">${contact.phone}</small>
+        </div>
+        <span class="badge bg-secondary">${this.getContactTypeText(contact.type)}</span>
       </div>
-      <div class="contact-type">${this.getContactTypeText(contact.type)}</div>
     `
 
     element.addEventListener("click", () => {
@@ -2154,7 +1798,7 @@ class AmmanDriverGuide {
     window.open(url, "_blank")
     this.logExecution(`📱 Shared location to ${contact.name}`, "info")
     this.playVoiceAlert(`تم مشاركة الموقع مع ${contact.name}`)
-    this.closeShareModal()
+    this.shareModal.hide()
   }
 
   filterContacts(searchTerm) {
@@ -2162,11 +1806,11 @@ class AmmanDriverGuide {
     const term = searchTerm.toLowerCase()
 
     contacts.forEach((contact) => {
-      const name = contact.querySelector(".contact-name").textContent.toLowerCase()
-      const phone = contact.querySelector(".contact-phone").textContent.toLowerCase()
+      const name = contact.querySelector("h6").textContent.toLowerCase()
+      const phone = contact.querySelector("small").textContent.toLowerCase()
 
       if (name.includes(term) || phone.includes(term)) {
-        contact.style.display = "flex"
+        contact.style.display = "block"
       } else {
         contact.style.display = "none"
       }
@@ -2198,10 +1842,8 @@ class AmmanDriverGuide {
 
     this.activeShares.set(shareId, shareData)
 
-    // Generate sharing URL
     const shareUrl = this.generateLiveShareUrl(shareData)
 
-    // Copy URL to clipboard
     navigator.clipboard.writeText(shareUrl).then(() => {
       this.showToast("تم نسخ رابط التتبع المباشر", "success")
       this.playVoiceAlert("تم بدء المشاركة المباشرة ونسخ الرابط")
@@ -2210,7 +1852,6 @@ class AmmanDriverGuide {
     this.updateActiveShares()
     this.logExecution(`🔴 Started live sharing for ${duration} minutes`, "info")
 
-    // Set timer to stop sharing
     setTimeout(() => {
       this.stopLiveSharing(shareId)
     }, duration * 60000)
@@ -2245,9 +1886,9 @@ class AmmanDriverGuide {
       return
     }
 
-    const title = document.createElement("h4")
+    const title = document.createElement("h6")
     title.textContent = "المشاركات النشطة"
-    title.style.marginBottom = "var(--spacing-md)"
+    title.className = "mb-3"
     container.appendChild(title)
 
     this.activeShares.forEach((shareData, shareId) => {
@@ -2258,19 +1899,20 @@ class AmmanDriverGuide {
 
   createActiveShareElement(shareData) {
     const element = document.createElement("div")
-    element.className = "active-share-item"
+    element.className =
+      "d-flex align-items-center justify-content-between p-3 mb-2 border rounded bg-success bg-opacity-10"
 
     const timeRemaining = Math.max(0, Math.floor((shareData.endTime - new Date()) / 60000))
 
     element.innerHTML = `
-      <div class="share-status">
-        <div class="status-indicator"></div>
-        <div class="share-info">
-          <div class="share-recipient">مشاركة مباشرة #${shareData.id}</div>
-          <div class="share-time">متبقي: ${timeRemaining} دقيقة</div>
+      <div class="d-flex align-items-center">
+        <div class="status-indicator bg-success rounded-circle me-2" style="width: 8px; height: 8px;"></div>
+        <div>
+          <div class="fw-semibold">مشاركة مباشرة #${shareData.id}</div>
+          <small class="text-muted">متبقي: ${timeRemaining} دقيقة</small>
         </div>
       </div>
-      <button class="stop-share-btn" onclick="window.driverGuide.stopLiveSharing(${shareData.id})">
+      <button class="btn btn-sm btn-outline-danger" onclick="window.driverGuide.stopLiveSharing(${shareData.id})">
         إيقاف
       </button>
     `

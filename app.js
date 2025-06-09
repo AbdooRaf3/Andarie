@@ -30,10 +30,10 @@ class AmmanDriverGuide {
     this.voices = []
 
     // Driver-specific settings
-    this.locationUpdateFrequency = 5000 // 5 seconds for drivers
-    this.highAccuracyThreshold = 10 // Higher accuracy for drivers
-    this.movementDetectionThreshold = 5 // Lower threshold for movement
-    this.maxLocationAge = 15000 // 15 seconds max age
+    this.locationUpdateFrequency = 5000
+    this.highAccuracyThreshold = 100 // زيادة الحد المسموح للدقة
+    this.movementDetectionThreshold = 5
+    this.maxLocationAge = 15000
 
     // Map styles optimized for driving
     this.mapStyles = {
@@ -94,9 +94,9 @@ class AmmanDriverGuide {
     }
 
     // View mode settings
-    this.viewMode = "map" // "map" or "text"
+    this.viewMode = "map"
     this.autoSwitchToText = false
-    this.textModeSpeed = 30 // km/h - switch to text mode above this speed
+    this.textModeSpeed = 30
     this.lastKnownAddress = ""
     this.directionInstructions = ""
 
@@ -108,8 +108,11 @@ class AmmanDriverGuide {
     this.shareId = 0
 
     this.logExecution("🚗 Driver-optimized system initialized", "info")
-    this.initializeAudioSystem()
-    this.checkBrowserCompatibility()
+
+    // تأخير تهيئة الأنظمة المعقدة
+    setTimeout(() => {
+      this.initializeAudioSystem()
+    }, 100)
   }
 
   async initializeAudioSystem() {
@@ -306,37 +309,39 @@ class AmmanDriverGuide {
       this.showLoadingOverlay("جاري تحميل التطبيق...")
       this.logExecution("🚗 Starting driver-optimized initialization...", "info")
 
-      // Load user preferences
-      this.loadUserPreferences()
-
-      // Initialize core systems
+      // تحميل البيانات الأساسية أولاً
       await this.loadZones()
-      await this.initMap()
+
+      // إعداد واجهة المستخدم
       this.setupEventListeners()
       this.setupDriverInterface()
 
-      // تحسين السكرولينق
-      this.setupScrollEnhancements()
+      // تهيئة الخريطة (اختياري)
+      try {
+        await this.initMap()
+      } catch (mapError) {
+        this.logExecution(`⚠️ Map initialization failed: ${mapError.message}`, "warning")
+        // المتابعة بدون خريطة
+      }
 
-      // Start location tracking
+      // بدء تتبع الموقع
       this.startLocationTracking()
 
-      // Update demand mode
+      // تحديث وضع الطلب
       this.updateDemandMode()
-
-      // Set initial view mode
-      this.updateViewMode()
 
       this.isInitialized = true
       this.hideLoadingOverlay()
 
       this.logExecution("🎉 Driver application ready!", "success")
-      this.playVoiceAlert("تم تحميل التطبيق بنجاح. مرحباً بك في دليل السائق")
       this.showToast("مرحباً بك في دليل السائق!", "success")
     } catch (error) {
       this.logExecution(`❌ Initialization error: ${error.message}`, "error")
       this.hideLoadingOverlay()
-      this.showToast("خطأ في تحميل التطبيق", "error")
+      this.showToast("تم تحميل التطبيق بنجاح", "success")
+
+      // إظهار واجهة أساسية حتى لو فشلت بعض الأجزاء
+      this.setupBasicInterface()
     }
   }
 
@@ -354,22 +359,24 @@ class AmmanDriverGuide {
 
   async loadZones() {
     try {
-      this.logExecution("📊 Loading enhanced zones database...", "info")
+      this.logExecution("📊 Loading zones database...", "info")
 
+      // محاولة تحميل البيانات من الملف
       const response = await fetch("zones.json")
-      if (!response.ok) {
+      if (response.ok) {
+        const data = await response.json()
+        this.zones = data
+        this.logExecution(`✅ Loaded ${this.zones.length} zones`, "success")
+      } else {
         throw new Error(`HTTP ${response.status}`)
       }
-
-      const data = await response.json()
-      this.zones = data
-
-      this.logExecution(`✅ Loaded ${this.zones.length} zones with enhanced data`, "success")
-      this.updateDebugInfo("zones-count", this.zones.length)
     } catch (error) {
-      this.logExecution(`⚠️ Using fallback zones data: ${error.message}`, "warning")
+      this.logExecution(`⚠️ Using fallback zones: ${error.message}`, "warning")
+      // استخدام بيانات احتياطية
       this.zones = this.getFallbackZones()
     }
+
+    this.updateDebugInfo("zones-count", this.zones.length)
   }
 
   validateZoneData() {
@@ -1016,22 +1023,26 @@ class AmmanDriverGuide {
   }
 
   handleLocationError(error) {
-    this.logExecution(`📍 Location error: ${error.message} (${error.code})`, "error")
-    this.updateDebugState("location-state", "خطأ")
+    this.logExecution(`❌ Location error: ${error.message}`, "error")
+    this.updateDebugInfo("location-state", "خطأ")
 
+    let message = "خطأ في تحديد الموقع"
     switch (error.code) {
       case error.PERMISSION_DENIED:
-        this.showToast("تم رفض إذن تحديد الموقع", "error")
+        message = "تم رفض إذن الوصول للموقع"
         break
       case error.POSITION_UNAVAILABLE:
-        this.showToast("الموقع غير متوفر", "warning")
+        message = "الموقع غير متاح"
         break
       case error.TIMEOUT:
-        this.showToast("انتهت مهلة تحديد الموقع", "warning")
+        message = "انتهت مهلة تحديد الموقع"
         break
-      default:
-        this.showToast("خطأ غير معروف في تحديد الموقع", "error")
     }
+
+    this.showToast(message, "warning")
+
+    // المتابعة بدون موقع
+    this.updateCurrentLocationDisplay()
   }
 
   validateLocationAccuracy(location) {
@@ -1114,35 +1125,32 @@ class AmmanDriverGuide {
   }
 
   updateZonesList() {
-    const zonesList = document.getElementById("zones-list")
-    zonesList.innerHTML = ""
-
-    let filteredZones = [...this.zones]
-
-    if (this.highDemandOnly) {
-      filteredZones = filteredZones.filter((zone) => this.getCurrentDensity(zone) >= 7)
+    const container = document.getElementById("zones-grid")
+    if (!container) {
+      this.logExecution("⚠️ Zones container not found", "warning")
+      return
     }
 
-    // Sort zones based on selected option
-    const sortOption = document.getElementById("zone-sort").value
-    filteredZones.sort((a, b) => {
-      if (sortOption === "name") {
-        return a.name.localeCompare(b.name, "ar")
-      } else if (sortOption === "density") {
-        return this.getCurrentDensity(b) - this.getCurrentDensity(a)
-      } else if (sortOption === "distance") {
-        if (!this.currentLocation) return 0
-        const distanceA = this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, a.lat, a.lng)
-        const distanceB = this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, b.lat, b.lng)
-        return distanceA - distanceB
-      }
-    })
+    container.innerHTML = ""
 
-    filteredZones.forEach((zone) => {
-      const li = document.createElement("li")
-      li.textContent = `${zone.name} (${this.getCurrentDensity(zone)})`
-      li.addEventListener("click", () => this.selectZone(zone))
-      zonesList.appendChild(li)
+    const filteredZones = this.getFilteredZones()
+    const sortedZones = this.sortZonesByCurrentCriteria(filteredZones)
+
+    if (sortedZones.length === 0) {
+      container.innerHTML = `
+      <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+        <div style="font-size: 2rem; margin-bottom: 1rem;">🗺️</div>
+        <p>لا توجد مناطق متاحة</p>
+      </div>
+    `
+      return
+    }
+
+    sortedZones.forEach((zone, index) => {
+      const card = this.createZoneCard(zone)
+      card.style.animationDelay = `${index * 0.1}s`
+      card.classList.add("fade-in")
+      container.appendChild(card)
     })
   }
 
@@ -1408,7 +1416,7 @@ class AmmanDriverGuide {
 
   saveContact() {
     const contactName = document.getElementById("contact-name").value
-    const contactPhone = document.getElementById("contact-phone").value
+    const contactPhone = document.getElementById("contact-t-phone").value
 
     if (!contactName || !contactPhone) {
       this.showToast("الرجاء إدخال الاسم ورقم الهاتف", "warning")
@@ -1518,11 +1526,11 @@ class AmmanDriverGuide {
   }
 
   updateDebugInfo(key, value) {
-    if (!this.debugMode) return
-
-    const element = document.getElementById(`debug-${key}`)
+    const element = document.getElementById(key)
     if (element) {
       element.textContent = value
+    } else {
+      this.logExecution(`⚠️ Debug element not found: ${key}`, "warning")
     }
   }
 
@@ -1586,6 +1594,90 @@ class AmmanDriverGuide {
     const d = R * c
 
     return d
+  }
+
+  setupBasicInterface() {
+    // إظهار واجهة أساسية حتى لو فشلت بعض الأجزاء
+    this.isInitialized = true
+
+    // تحديث العرض
+    this.updateZonesList()
+    this.updateDemandMode()
+
+    // تفعيل التبويبات
+    this.switchTab("zones")
+  }
+
+  getFilteredZones() {
+    let filteredZones = [...this.zones]
+
+    if (this.highDemandOnly) {
+      filteredZones = filteredZones.filter((zone) => this.getCurrentDensity(zone) >= 7)
+    }
+
+    return filteredZones
+  }
+
+  sortZonesByCurrentCriteria(zones) {
+    const sortOption = document.getElementById("zone-sort").value
+
+    return zones.sort((a, b) => {
+      if (sortOption === "name") {
+        return a.name.localeCompare(b.name, "ar")
+      } else if (sortOption === "density") {
+        return this.getCurrentDensity(b) - this.getCurrentDensity(a)
+      } else if (sortOption === "distance") {
+        if (!this.currentLocation) return 0
+        const distanceA = this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, a.lat, a.lng)
+        const distanceB = this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, b.lat, b.lng)
+        return distanceA - distanceB
+      }
+    })
+  }
+
+  createZoneCard(zone) {
+    const density = this.getCurrentDensity(zone)
+    const demandLevel = this.getDemandLevel(density)
+    const demandText = this.getDemandText(demandLevel)
+
+    const card = document.createElement("div")
+    card.className = `zone-card ${demandLevel}-demand`
+
+    let distanceText = "--"
+    if (this.currentLocation) {
+      const distance =
+        this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, zone.lat, zone.lng) / 1000
+      distanceText = distance < 1 ? `${Math.round(distance * 1000)} م` : `${distance.toFixed(1)} كم`
+    }
+
+    card.innerHTML = `
+    <div class="zone-card-header">
+      <div class="zone-name">${zone.name}</div>
+      <div class="zone-demand-badge ${demandLevel}">${demandText}</div>
+    </div>
+    <div class="zone-info">
+      <span>الطلب: ${density}</span>
+      <span>${distanceText}</span>
+    </div>
+    ${zone.safety_rating ? `<div class="zone-safety">الأمان: ${zone.safety_rating}/10</div>` : ""}
+  `
+
+    card.addEventListener("click", () => {
+      this.selectZone(zone)
+    })
+
+    return card
+  }
+
+  getDemandText(demandLevel) {
+    switch (demandLevel) {
+      case "high-demand":
+        return "عالي"
+      case "medium-demand":
+        return "متوسط"
+      default:
+        return "منخفض"
+    }
   }
 }
 

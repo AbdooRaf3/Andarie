@@ -3,573 +3,169 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="دليل السائق للمناطق ذات الطلب العالي في عمان - تطبيق لمساعدة السائقين على إيجاد المناطق ذات الطلب العالي">
+    <meta name="description" content="دليل السائق للمناطق ذات الطلب العالي في عمان">
     <meta name="theme-color" content="#4361ee">
-    <title>دليل السائق للمناطق ذات الطلب العالي - عمان</title>
-    
-    <!-- Bootstrap CSS with RTL support -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.0.2/dist/maplibre-gl.css" />
+    <title>دليل السائق - عمان</title>
     <link rel="stylesheet" href="style.css" />
 </head>
-<body class="bg-gradient-primary">
-    <div class="driver-container d-flex flex-column vh-100">
-        <!-- Driver-Optimized Header -->
-        <header class="driver-header bg-white bg-opacity-95 shadow-lg">
-            <div class="container-fluid">
-                <div class="row align-items-center mb-2">
-                    <div class="col-auto">
-                        <h1 class="h4 mb-0 text-primary fw-bold">
-                            <i class="bi bi-car-front me-2"></i>دليل السائق
-                        </h1>
-                    </div>
-                    <div class="col text-end">
-                        <div class="btn-group me-2" role="group">
-                            <button id="voice-toggle" class="btn btn-success btn-lg rounded-circle p-2" 
-                                    aria-label="تفعيل/إيقاف الصوت" data-bs-toggle="tooltip" title="تفعيل/إيقاف الصوت">
-                                <i class="bi bi-volume-up fs-5"></i>
-                            </button>
-                            <button id="share-location" class="btn btn-info btn-lg rounded-circle p-2 mx-1" 
-                                    aria-label="مشاركة الموقع" data-bs-toggle="tooltip" title="مشاركة الموقع">
-                                <i class="bi bi-share fs-5"></i>
-                            </button>
-                            <button id="emergency-btn" class="btn btn-danger btn-lg rounded-circle p-2" 
-                                    aria-label="طوارئ" data-bs-toggle="tooltip" title="طوارئ">
-                                <i class="bi bi-exclamation-triangle fs-5"></i>
-                            </button>
-                        </div>
-                        <button id="view-toggle" class="btn btn-primary btn-lg rounded-circle p-2" 
-                                aria-label="تبديل عرض الخريطة" data-bs-toggle="tooltip" title="تبديل العرض">
-                            <i class="bi bi-map fs-5"></i>
-                        </button>
-                    </div>
+<body>
+    <div class="driver-container">
+        <!-- Header -->
+        <header class="driver-header">
+            <div class="header-main">
+                <h1>🚗 دليل السائق</h1>
+                <div class="voice-controls">
+                    <button id="voice-toggle" class="voice-btn" aria-label="تفعيل/إيقاف الصوت">
+                        🔊
+                    </button>
+                    <button id="emergency-btn" class="emergency-btn" aria-label="طوارئ">
+                        🚨
+                    </button>
                 </div>
-                
-                <div class="row g-2">
-                    <div class="col-6">
-                        <div class="status-item bg-white bg-opacity-90 rounded-3 p-2 border">
-                            <div class="d-flex align-items-center">
-                                <i class="bi bi-geo-alt text-primary me-2"></i>
-                                <small id="current-area-display" class="fw-semibold text-truncate">جاري التحديد...</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <div class="status-item bg-white bg-opacity-90 rounded-3 p-2 border">
-                            <div class="d-flex align-items-center">
-                                <i class="bi bi-clock text-primary me-2"></i>
-                                <small id="demand-mode-display" class="fw-semibold text-truncate">جاري التحميل...</small>
-                            </div>
-                        </div>
-                    </div>
+            </div>
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="status-icon">📍</span>
+                    <span id="current-area-display" class="status-text">جاري التحديد...</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-icon">⏰</span>
+                    <span id="demand-mode-display" class="status-text">جاري التحميل...</span>
                 </div>
             </div>
         </header>
 
-        <!-- Driver Dashboard -->
-        <div class="driver-dashboard bg-white bg-opacity-10 p-3">
-            <!-- Location Display Card (Text Mode) -->
-            <div class="location-display-card card border-0 shadow-lg mb-3 d-none" id="location-display-card">
-                <div class="card-body">
-                    <div class="row align-items-center mb-3">
-                        <div class="col-auto">
-                            <div class="location-icon text-primary display-4">
-                                <i class="bi bi-geo-alt-fill"></i>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <h5 id="current-location-name" class="card-title mb-1">جاري تحديد الموقع...</h5>
-                            <div class="row g-3 text-muted">
-                                <div class="col-auto">
-                                    <small><i class="bi bi-bullseye me-1"></i><span id="accuracy-info">--</span></small>
-                                </div>
-                                <div class="col-auto">
-                                    <small><i class="bi bi-speedometer me-1"></i><span id="speed-info">--</span></small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="next-direction bg-primary bg-opacity-10 rounded-3 p-3 border border-primary border-opacity-25">
-                        <div class="d-flex align-items-center">
-                            <div id="direction-icon" class="me-3 fs-1">➡️</div>
-                            <div id="direction-text" class="fw-semibold text-primary">استمر في الطريق الحالي</div>
-                        </div>
+        <!-- Dashboard -->
+        <div class="driver-dashboard">
+            <!-- Primary Action Card -->
+            <div class="action-card primary-card">
+                <div class="card-header">
+                    <h2>🎯 المنطقة المقترحة</h2>
+                    <div class="demand-indicator" id="demand-indicator">
+                        <span class="demand-level" id="demand-level">--</span>
                     </div>
                 </div>
-            </div>
-
-            <!-- Primary Action Card -->
-            <div class="action-card card border-0 shadow-lg border-start border-primary border-4 mb-3">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-bullseye text-primary me-2"></i>المنطقة المقترحة
-                        </h5>
-                        <div class="demand-indicator bg-success text-white rounded-circle d-flex align-items-center justify-content-center" 
-                             style="width: 60px; height: 60px;" id="demand-indicator">
-                            <span class="fw-bold" id="demand-level">--</span>
-                        </div>
+                <div class="card-content">
+                    <div class="suggested-zone" id="suggested-zone-display">جاري البحث...</div>
+                    <div class="zone-details" id="zone-details">
+                        <span class="distance" id="suggested-distance">--</span>
+                        <span class="eta" id="suggested-eta">--</span>
                     </div>
-                    
-                    <div class="mb-3">
-                        <h4 id="suggested-zone-display" class="text-dark mb-2">جاري البحث...</h4>
-                        <div class="row g-3 text-muted">
-                            <div class="col-auto">
-                                <small><i class="bi bi-geo me-1"></i><span id="suggested-distance">--</span></small>
-                            </div>
-                            <div class="col-auto">
-                                <small><i class="bi bi-clock me-1"></i><span id="suggested-eta">--</span></small>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="d-grid gap-2 d-md-flex">
-                        <button id="navigate-btn" class="btn btn-primary btn-lg flex-fill" disabled>
-                            <i class="bi bi-navigation me-2"></i>توجه الآن
-                        </button>
-                        <button id="refresh-suggestion" class="btn btn-outline-primary btn-lg flex-fill">
-                            <i class="bi bi-arrow-clockwise me-2"></i>تحديث
-                        </button>
-                    </div>
+                </div>
+                <div class="card-actions">
+                    <button id="navigate-btn" class="action-btn primary-btn" disabled>
+                        🧭 توجه الآن
+                    </button>
+                    <button id="refresh-suggestion" class="action-btn secondary-btn">
+                        🔄 تحديث
+                    </button>
                 </div>
             </div>
 
             <!-- Quick Actions -->
-            <div class="row g-2">
-                <div class="col-6 col-lg-3">
-                    <button id="find-nearest" class="btn btn-outline-primary w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3">
-                        <i class="bi bi-geo-alt fs-4 mb-1"></i>
-                        <small class="fw-semibold">أقرب منطقة</small>
-                    </button>
-                </div>
-                <div class="col-6 col-lg-3">
-                    <button id="high-demand-filter" class="btn btn-outline-warning w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3">
-                        <i class="bi bi-fire fs-4 mb-1"></i>
-                        <small class="fw-semibold">طلب عالي فقط</small>
-                    </button>
-                </div>
-                <div class="col-6 col-lg-3">
-                    <button id="voice-navigation" class="btn btn-outline-info w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3">
-                        <i class="bi bi-mic fs-4 mb-1"></i>
-                        <small class="fw-semibold">التوجيه الصوتي</small>
-                    </button>
-                </div>
-                <div class="col-6 col-lg-3">
-                    <button id="safety-mode" class="btn btn-outline-success w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3">
-                        <i class="bi bi-shield-check fs-4 mb-1"></i>
-                        <small class="fw-semibold">وضع الأمان</small>
-                    </button>
-                </div>
+            <div class="quick-actions">
+                <button id="find-nearest" class="quick-btn">
+                    <span class="btn-icon">📍</span>
+                    <span class="btn-text">أقرب منطقة</span>
+                </button>
+                <button id="high-demand-filter" class="quick-btn toggle-btn">
+                    <span class="btn-icon">🔥</span>
+                    <span class="btn-text">طلب عالي فقط</span>
+                </button>
+                <button id="voice-navigation" class="quick-btn">
+                    <span class="btn-icon">🎤</span>
+                    <span class="btn-text">التوجيه الصوتي</span>
+                </button>
+                <button id="safety-mode" class="quick-btn toggle-btn">
+                    <span class="btn-icon">🛡️</span>
+                    <span class="btn-text">وضع الأمان</span>
+                </button>
             </div>
         </div>
 
-        <!-- Map Container -->
-        <div id="map" class="driver-map flex-grow-1 rounded-top-3 shadow-lg border border-white border-opacity-25" 
-             aria-label="خريطة المناطق" role="application"></div>
+        <!-- Map Placeholder -->
+        <div class="driver-map">
+            <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: #f0f0f0; color: #666;">
+                <div style="text-align: center;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🗺️</div>
+                    <p>الخريطة ستظهر هنا</p>
+                </div>
+            </div>
+        </div>
 
         <!-- Bottom Panel -->
-        <div class="bottom-panel bg-white rounded-top-3 shadow-lg">
-            <!-- Navigation Tabs -->
-            <ul class="nav nav-tabs nav-fill border-0" id="mainTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active fw-semibold" id="zones-tab-btn" data-bs-toggle="tab" 
-                            data-bs-target="#zones-tab" type="button" role="tab">
-                        <i class="bi bi-map me-2"></i>المناطق
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link fw-semibold" id="settings-tab-btn" data-bs-toggle="tab" 
-                            data-bs-target="#settings-tab" type="button" role="tab">
-                        <i class="bi bi-gear me-2"></i>الإعدادات
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link fw-semibold" id="debug-tab-btn" data-bs-toggle="tab" 
-                            data-bs-target="#debug-tab" type="button" role="tab">
-                        <i class="bi bi-bug me-2"></i>التشخيص
-                    </button>
-                </li>
-            </ul>
+        <div class="bottom-panel">
+            <div class="panel-tabs">
+                <button class="tab-btn active" data-tab="zones">المناطق</button>
+                <button class="tab-btn" data-tab="settings">الإعدادات</button>
+                <button class="tab-btn" data-tab="debug">التشخيص</button>
+            </div>
 
-            <!-- Tab Content -->
-            <div class="tab-content p-3" style="height: 250px; overflow-y: auto;">
-                <!-- Zones Tab -->
-                <div class="tab-pane fade show active" id="zones-tab" role="tabpanel">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="mb-0">المناطق المتاحة</h5>
-                        <select id="zone-sort" class="form-select form-select-sm" style="width: auto;">
-                            <option value="demand">حسب الطلب</option>
-                            <option value="distance">حسب المسافة</option>
-                            <option value="name">حسب الاسم</option>
-                        </select>
-                    </div>
-                    <div id="zones-grid" class="row g-2"></div>
+            <!-- Zones Tab -->
+            <div class="tab-content active" id="zones-tab">
+                <div class="zones-header">
+                    <h3>المناطق المتاحة</h3>
                 </div>
+                <div id="zones-grid" class="zones-grid scrollable-content"></div>
+            </div>
 
-                <!-- Settings Tab -->
-                <div class="tab-pane fade" id="settings-tab" role="tabpanel">
-                    <div class="accordion" id="settingsAccordion">
-                        <!-- Audio Settings -->
-                        <div class="accordion-item">
-                            <h2 class="accordion-header">
-                                <button class="accordion-button" type="button" data-bs-toggle="collapse" 
-                                        data-bs-target="#audioSettings">
-                                    <i class="bi bi-volume-up me-2"></i>إعدادات الصوت
-                                </button>
-                            </h2>
-                            <div id="audioSettings" class="accordion-collapse collapse show">
-                                <div class="accordion-body">
-                                    <div class="form-check form-switch mb-3">
-                                        <input class="form-check-input" type="checkbox" id="voice-enabled" checked>
-                                        <label class="form-check-label" for="voice-enabled">تفعيل التنبيهات الصوتية</label>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="voice-volume" class="form-label">مستوى الصوت</label>
-                                        <input type="range" class="form-range" id="voice-volume" min="0" max="100" value="70">
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="voice-language" class="form-label">لغة التنبيهات</label>
-                                        <select class="form-select" id="voice-language">
-                                            <option value="ar">العربية</option>
-                                            <option value="en">English</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Driving Settings -->
-                        <div class="accordion-item">
-                            <h2 class="accordion-header">
-                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
-                                        data-bs-target="#drivingSettings">
-                                    <i class="bi bi-car-front me-2"></i>إعدادات القيادة
-                                </button>
-                            </h2>
-                            <div id="drivingSettings" class="accordion-collapse collapse">
-                                <div class="accordion-body">
-                                    <div class="form-check form-switch mb-3">
-                                        <input class="form-check-input" type="checkbox" id="safety-mode-setting">
-                                        <label class="form-check-label" for="safety-mode-setting">وضع الأمان</label>
-                                    </div>
-                                    <div class="form-check form-switch mb-3">
-                                        <input class="form-check-input" type="checkbox" id="auto-refresh" checked>
-                                        <label class="form-check-label" for="auto-refresh">التحديث التلقائي</label>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="map-style-setting" class="form-label">نمط الخريطة</label>
-                                        <select class="form-select" id="map-style-setting">
-                                            <option value="osm">عادي</option>
-                                            <option value="satellite">قمر صناعي</option>
-                                            <option value="dark">داكن</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Display Settings -->
-                        <div class="accordion-item">
-                            <h2 class="accordion-header">
-                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
-                                        data-bs-target="#displaySettings">
-                                    <i class="bi bi-display me-2"></i>إعدادات العرض
-                                </button>
-                            </h2>
-                            <div id="displaySettings" class="accordion-collapse collapse">
-                                <div class="accordion-body">
-                                    <div class="form-check form-switch mb-3">
-                                        <input class="form-check-input" type="checkbox" id="auto-switch-text">
-                                        <label class="form-check-label" for="auto-switch-text">التبديل التلقائي للنص أثناء القيادة</label>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="text-mode-speed" class="form-label">
-                                            سرعة التبديل التلقائي: <span id="speed-display" class="badge bg-primary">30</span> كم/س
-                                        </label>
-                                        <input type="range" class="form-range" id="text-mode-speed" min="20" max="60" value="30">
-                                    </div>
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="enhanced-voice-text" checked>
-                                        <label class="form-check-label" for="enhanced-voice-text">تعليمات صوتية محسنة في وضع النص</label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+            <!-- Settings Tab -->
+            <div class="tab-content" id="settings-tab">
+                <div class="settings-section">
+                    <h3>إعدادات الصوت</h3>
+                    <div class="setting-item">
+                        <label>تفعيل التنبيهات الصوتية</label>
+                        <input type="checkbox" checked>
                     </div>
                 </div>
+                
+                <div class="settings-section">
+                    <h3>إعدادات القيادة</h3>
+                    <div class="setting-item">
+                        <label>وضع الأمان</label>
+                        <input type="checkbox">
+                    </div>
+                    <div class="setting-item">
+                        <label>التحديث التلقائي</label>
+                        <input type="checkbox" checked>
+                    </div>
+                </div>
+            </div>
 
-                <!-- Debug Tab -->
-                <div class="tab-pane fade" id="debug-tab" role="tabpanel">
-                    <h5 class="mb-3">معلومات النظام</h5>
-                    <div class="row g-3 mb-4">
-                        <div class="col-6">
-                            <div class="card bg-light">
-                                <div class="card-body p-2">
-                                    <small class="text-muted d-block">حالة التطبيق</small>
-                                    <span class="fw-semibold">جاهز</span>
-                                </div>
-                            </div>
+            <!-- Debug Tab -->
+            <div class="tab-content" id="debug-tab">
+                <div class="debug-section">
+                    <h3>معلومات النظام</h3>
+                    <div class="debug-grid">
+                        <div class="debug-item">
+                            <span class="debug-label">حالة التطبيق:</span>
+                            <span class="debug-value">جاهز</span>
                         </div>
-                        <div class="col-6">
-                            <div class="card bg-light">
-                                <div class="card-body p-2">
-                                    <small class="text-muted d-block">حالة الموقع</small>
-                                    <span id="location-state" class="fw-semibold">غير محدد</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="card bg-light">
-                                <div class="card-body p-2">
-                                    <small class="text-muted d-block">دقة الموقع</small>
-                                    <span id="location-accuracy" class="fw-semibold">--</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="card bg-light">
-                                <div class="card-body p-2">
-                                    <small class="text-muted d-block">عدد المناطق</small>
-                                    <span id="zones-count" class="fw-semibold">--</span>
-                                </div>
-                            </div>
+                        <div class="debug-item">
+                            <span class="debug-label">عدد المناطق:</span>
+                            <span class="debug-value">6</span>
                         </div>
                     </div>
-                    
-                    <div class="d-grid gap-2 d-md-flex">
-                        <button id="test-voice" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-mic me-1"></i>اختبار الصوت
-                        </button>
-                        <button id="force-reload" class="btn btn-outline-warning btn-sm">
-                            <i class="bi bi-arrow-clockwise me-1"></i>إعادة تحميل
-                        </button>
-                        <button id="export-logs" class="btn btn-outline-info btn-sm">
-                            <i class="bi bi-download me-1"></i>تصدير السجلات
-                        </button>
+                    <div class="debug-actions">
+                        <button id="test-voice" class="debug-btn">اختبار الصوت</button>
+                        <button id="force-reload" class="debug-btn">إعادة تحميل</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Audio Elements -->
-        <audio id="notification-sound" preload="auto">
-            <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT" type="audio/wav">
-        </audio>
-
-        <!-- Voice Alerts Container -->
-        <div id="voice-alerts" class="position-fixed top-50 start-50 translate-middle bg-dark text-white p-4 rounded-3 fs-4 fw-bold text-center" 
-             style="z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease;" aria-live="polite"></div>
-
-        <!-- Loading Overlay -->
-        <div id="loading-overlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" 
-             style="background: rgba(255, 255, 255, 0.95); z-index: 9999; backdrop-filter: blur(5px);">
-            <div class="text-center">
-                <div class="spinner-border text-primary mb-3" style="width: 4rem; height: 4rem;" role="status">
-                    <span class="visually-hidden">جاري التحميل...</span>
-                </div>
-                <h5 class="text-primary">جاري تحميل التطبيق...</h5>
-                <p class="text-muted">يرجى الانتظار...</p>
-            </div>
-        </div>
-
-        <!-- Toast Container -->
-        <div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3" style="z-index: 1000;">
-            <div id="toast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
-                <div class="d-flex">
-                    <div class="toast-body fw-semibold"></div>
-                    <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="إغلاق"></button>
+        <!-- Loading Overlay (مخفي افتراضياً) -->
+        <div id="loading-overlay" class="loading-overlay" style="display: none;">
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">جاري تحميل التطبيق...</div>
+                <div style="margin-top: 1rem; font-size: 0.9rem; color: #666;">
+                    يرجى الانتظار...
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Share Location Modal -->
-    <div class="modal fade" id="shareModal" tabindex="-1" aria-labelledby="shareModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="shareModalLabel">
-                        <i class="bi bi-share me-2"></i>مشاركة الموقع
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
-                </div>
-                <div class="modal-body">
-                    <!-- Share Tabs -->
-                    <ul class="nav nav-pills nav-fill mb-3" id="shareTabs" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="quick-share-tab-btn" data-bs-toggle="pill" 
-                                    data-bs-target="#quick-share-tab" type="button" role="tab">
-                                مشاركة سريعة
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="contacts-share-tab-btn" data-bs-toggle="pill" 
-                                    data-bs-target="#contacts-share-tab" type="button" role="tab">
-                                جهات الاتصال
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="live-share-tab-btn" data-bs-toggle="pill" 
-                                    data-bs-target="#live-share-tab" type="button" role="tab">
-                                تتبع مباشر
-                            </button>
-                        </li>
-                    </ul>
-
-                    <div class="tab-content">
-                        <!-- Quick Share -->
-                        <div class="tab-pane fade show active" id="quick-share-tab" role="tabpanel">
-                            <div class="card bg-light mb-3">
-                                <div class="card-body">
-                                    <div class="d-flex align-items-center">
-                                        <i class="bi bi-geo-alt text-primary fs-2 me-3"></i>
-                                        <div>
-                                            <h6 id="share-location-name" class="card-title mb-1">الموقع الحالي</h6>
-                                            <small id="share-location-details" class="text-muted">جاري تحديد الموقع...</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="row g-3">
-                                <div class="col-6">
-                                    <button id="share-whatsapp" class="btn btn-outline-success w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3">
-                                        <i class="bi bi-whatsapp fs-2 mb-2"></i>
-                                        <span class="fw-semibold">WhatsApp</span>
-                                    </button>
-                                </div>
-                                <div class="col-6">
-                                    <button id="share-telegram" class="btn btn-outline-info w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3">
-                                        <i class="bi bi-telegram fs-2 mb-2"></i>
-                                        <span class="fw-semibold">Telegram</span>
-                                    </button>
-                                </div>
-                                <div class="col-6">
-                                    <button id="share-sms" class="btn btn-outline-primary w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3">
-                                        <i class="bi bi-chat-text fs-2 mb-2"></i>
-                                        <span class="fw-semibold">رسالة نصية</span>
-                                    </button>
-                                </div>
-                                <div class="col-6">
-                                    <button id="share-copy" class="btn btn-outline-warning w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3">
-                                        <i class="bi bi-clipboard fs-2 mb-2"></i>
-                                        <span class="fw-semibold">نسخ الرابط</span>
-                                    </button>
-                                </div>
-                                <div class="col-6">
-                                    <button id="share-email" class="btn btn-outline-danger w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3">
-                                        <i class="bi bi-envelope fs-2 mb-2"></i>
-                                        <span class="fw-semibold">بريد إلكتروني</span>
-                                    </button>
-                                </div>
-                                <div class="col-6">
-                                    <button id="share-maps" class="btn btn-outline-secondary w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3">
-                                        <i class="bi bi-map fs-2 mb-2"></i>
-                                        <span class="fw-semibold">خرائط جوجل</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Contacts Share -->
-                        <div class="tab-pane fade" id="contacts-share-tab" role="tabpanel">
-                            <div class="d-flex gap-2 mb-3">
-                                <input type="text" id="contact-search" class="form-control" placeholder="البحث في جهات الاتصال...">
-                                <button id="add-contact" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addContactModal">
-                                    <i class="bi bi-plus"></i>
-                                </button>
-                            </div>
-                            <div id="favorite-contacts" style="max-height: 300px; overflow-y: auto;"></div>
-                        </div>
-
-                        <!-- Live Share -->
-                        <div class="tab-pane fade" id="live-share-tab" role="tabpanel">
-                            <div class="text-center mb-4">
-                                <i class="bi bi-broadcast text-primary display-4 mb-3"></i>
-                                <h5>التتبع المباشر</h5>
-                                <p class="text-muted">مشاركة موقعك المباشر مع الآخرين لفترة محددة</p>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="share-duration" class="form-label fw-semibold">مدة المشاركة:</label>
-                                <select class="form-select" id="share-duration">
-                                    <option value="15">15 دقيقة</option>
-                                    <option value="30" selected>30 دقيقة</option>
-                                    <option value="60">ساعة واحدة</option>
-                                    <option value="120">ساعتان</option>
-                                    <option value="480">8 ساعات</option>
-                                </select>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="include-destination" checked>
-                                    <label class="form-check-label" for="include-destination">تضمين الوجهة المقترحة</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="show-route">
-                                    <label class="form-check-label" for="show-route">عرض المسار المتبع</label>
-                                </div>
-                            </div>
-                            
-                            <div class="d-grid">
-                                <button id="start-live-share" class="btn btn-success btn-lg">
-                                    <i class="bi bi-broadcast me-2"></i>بدء المشاركة المباشرة
-                                </button>
-                            </div>
-                            
-                            <div id="active-shares" class="mt-3"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add Contact Modal -->
-    <div class="modal fade" id="addContactModal" tabindex="-1" aria-labelledby="addContactModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="addContactModalLabel">
-                        <i class="bi bi-person-plus me-2"></i>إضافة جهة اتصال
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
-                </div>
-                <form id="add-contact-form">
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="contact-name" class="form-label">الاسم:</label>
-                            <input type="text" class="form-control" id="contact-name" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="contact-phone" class="form-label">رقم الهاتف:</label>
-                            <input type="tel" class="form-control" id="contact-phone" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="contact-type" class="form-label">النوع:</label>
-                            <select class="form-select" id="contact-type">
-                                <option value="customer">عميل</option>
-                                <option value="family">عائلة</option>
-                                <option value="friend">صديق</option>
-                                <option value="work">عمل</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
-                        <button type="submit" class="btn btn-primary">حفظ</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://unpkg.com/maplibre-gl@4.0.2/dist/maplibre-gl.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

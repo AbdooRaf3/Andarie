@@ -750,13 +750,60 @@ class AmmanDriverGuide {
       return
     }
 
-    this.navigationActive = true
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${this.suggestedZone.lat},${this.suggestedZone.lng}`
-    window.open(url, "_blank")
+    // Show confirmation dialog
+    const confirmNavigation = confirm(`هل تريد فتح التنقل إلى ${this.suggestedZone.name}؟`)
 
-    this.playVoiceAlert(`جاري التوجه إلى ${this.suggestedZone.name}`)
+    if (!confirmNavigation) return
+
+    this.navigationActive = true
+
+    // Enhanced navigation options
+    const navigationOptions = [
+      {
+        name: "خرائط جوجل",
+        url: `https://www.google.com/maps/dir/?api=1&destination=${this.suggestedZone.lat},${this.suggestedZone.lng}&travelmode=driving`,
+      },
+      {
+        name: "Waze",
+        url: `https://waze.com/ul?ll=${this.suggestedZone.lat},${this.suggestedZone.lng}&navigate=yes`,
+      },
+    ]
+
+    // Try to open preferred navigation app
+    const preferredApp = localStorage.getItem("preferredNavigationApp") || "google"
+    const selectedOption =
+      navigationOptions.find((opt) => opt.name.toLowerCase().includes(preferredApp)) || navigationOptions[0]
+
+    window.open(selectedOption.url, "_blank")
+
+    // Enhanced feedback
+    const distance = this.getDistanceToZone(this.suggestedZone)
+    this.playVoiceAlert(`جاري التوجه إلى ${this.suggestedZone.name}. المسافة المقدرة ${distance}`)
     this.showToast(`جاري التوجه إلى ${this.suggestedZone.name}`, "success")
     this.logExecution(`🧭 Navigation started to ${this.suggestedZone.name}`, "info")
+
+    // Update navigation state
+    this.updateNavigationState(true)
+  }
+
+  // إضافة دالة لتحديث حالة التنقل
+  updateNavigationState(isNavigating) {
+    const navigateBtn = document.getElementById("navigate-btn")
+
+    if (isNavigating) {
+      navigateBtn.textContent = "🧭 جاري التنقل..."
+      navigateBtn.classList.add("navigating")
+
+      // Auto-switch to text mode for safer driving
+      if (this.viewMode === "map") {
+        this.viewMode = "text"
+        this.updateViewMode()
+        this.playVoiceAlert("تم التبديل إلى وضع النص للقيادة الآمنة")
+      }
+    } else {
+      navigateBtn.textContent = "🧭 توجه الآن"
+      navigateBtn.classList.remove("navigating")
+    }
   }
 
   refreshSuggestion() {
@@ -842,10 +889,31 @@ class AmmanDriverGuide {
     // Enable navigation button
     document.getElementById("navigate-btn").disabled = false
 
-    // Highlight on map
+    // Highlight on map with smooth animation
     this.highlightZoneOnMap(zone)
 
-    this.playVoiceAlert(`تم اختيار ${zone.name} كمنطقة مقترحة`)
+    // Auto-switch to map view when zone is selected for better visualization
+    if (this.viewMode === "text") {
+      this.viewMode = "map"
+      this.updateViewMode()
+      this.showToast("تم التبديل إلى عرض الخريطة لإظهار المنطقة المختارة", "info")
+    }
+
+    // Enhanced voice feedback
+    this.playVoiceAlert(`تم اختيار ${zone.name} كمنطقة مقترحة. المسافة ${this.getDistanceToZone(zone)}`)
+
+    // Visual feedback
+    this.showToast(`تم اختيار ${zone.name}`, "success")
+  }
+
+  // إضافة دالة مساعدة لحساب المسافة
+  getDistanceToZone(zone) {
+    if (!this.currentLocation) return "غير محددة"
+
+    const distance =
+      this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, zone.lat, zone.lng) / 1000
+
+    return distance < 1 ? `${Math.round(distance * 1000)} متر` : `${distance.toFixed(1)} كيلومتر`
   }
 
   updateSuggestedZoneDisplay() {
@@ -1252,11 +1320,59 @@ class AmmanDriverGuide {
   highlightZoneOnMap(zone) {
     if (!this.map) return
 
+    // Smooth fly animation to the selected zone
     this.map.flyTo({
       center: [zone.lng, zone.lat],
       zoom: 16,
-      duration: 1000,
+      duration: 2000,
+      essential: true,
     })
+
+    // Add temporary highlight marker
+    this.addTemporaryHighlight(zone)
+  }
+
+  // إضافة دالة لإضافة تمييز مؤقت
+  addTemporaryHighlight(zone) {
+    // Remove existing highlight
+    if (this.map.getLayer("zone-highlight")) {
+      this.map.removeLayer("zone-highlight")
+      this.map.removeSource("zone-highlight")
+    }
+
+    // Add highlight source and layer
+    this.map.addSource("zone-highlight", {
+      type: "geojson",
+      data: {
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [zone.lng, zone.lat],
+        },
+      },
+    })
+
+    this.map.addLayer({
+      id: "zone-highlight",
+      type: "circle",
+      source: "zone-highlight",
+      paint: {
+        "circle-radius": 25,
+        "circle-color": "#4361ee",
+        "circle-opacity": 0.3,
+        "circle-stroke-width": 3,
+        "circle-stroke-color": "#4361ee",
+        "circle-stroke-opacity": 0.8,
+      },
+    })
+
+    // Remove highlight after 3 seconds
+    setTimeout(() => {
+      if (this.map.getLayer("zone-highlight")) {
+        this.map.removeLayer("zone-highlight")
+        this.map.removeSource("zone-highlight")
+      }
+    }, 3000)
   }
 
   findNearestZone(location) {

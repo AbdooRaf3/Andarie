@@ -16,6 +16,9 @@
             <div class="header-main">
                 <h1>🚗 دليل السائق</h1>
                 <div class="voice-controls">
+                    <button id="menu-toggle" class="menu-btn" aria-label="فتح القائمة">
+                        ☰
+                    </button>
                     <button id="voice-toggle" class="voice-btn" aria-label="تفعيل/إيقاف الصوت">
                         🔊
                     </button>
@@ -374,6 +377,135 @@
                         <button type="button" id="cancel-add-contact" class="cancel-btn">إلغاء</button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Side Menu -->
+        <div id="side-menu" class="side-menu">
+            <div class="menu-overlay"></div>
+            <div class="menu-content">
+                <div class="menu-header">
+                    <h3>🚗 دليل السائق</h3>
+                    <button id="close-menu" class="close-menu-btn">✕</button>
+                </div>
+                
+                <div class="menu-body">
+                    <!-- Profile Section -->
+                    <div class="menu-section">
+                        <div class="profile-card">
+                            <div class="profile-avatar">👤</div>
+                            <div class="profile-info">
+                                <div class="profile-name">سائق محترف</div>
+                                <div class="profile-status">متصل</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Settings -->
+                    <div class="menu-section">
+                        <h4>الإعدادات السريعة</h4>
+                        <div class="quick-settings">
+                            <div class="setting-toggle">
+                                <span class="setting-icon">🔊</span>
+                                <span class="setting-label">التنبيهات الصوتية</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="menu-voice-toggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            
+                            <div class="setting-toggle">
+                                <span class="setting-icon">🛡️</span>
+                                <span class="setting-label">وضع الأمان</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="menu-safety-toggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            
+                            <div class="setting-toggle">
+                                <span class="setting-icon">🔄</span>
+                                <span class="setting-label">التحديث التلقائي</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="menu-auto-refresh" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            
+                            <div class="setting-toggle">
+                                <span class="setting-icon">📱</span>
+                                <span class="setting-label">التبديل التلقائي للنص</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="menu-auto-text">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Map Style -->
+                    <div class="menu-section">
+                        <h4>نمط الخريطة</h4>
+                        <div class="map-style-selector">
+                            <button class="style-btn active" data-style="osm">
+                                <span class="style-icon">🗺️</span>
+                                <span class="style-name">عادي</span>
+                            </button>
+                            <button class="style-btn" data-style="satellite">
+                                <span class="style-icon">🛰️</span>
+                                <span class="style-name">قمر صناعي</span>
+                            </button>
+                            <button class="style-btn" data-style="dark">
+                                <span class="style-icon">🌙</span>
+                                <span class="style-name">داكن</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Menu Items -->
+                    <div class="menu-section">
+                        <h4>الخيارات</h4>
+                        <div class="menu-items">
+                            <button class="menu-item" id="menu-settings">
+                                <span class="menu-icon">⚙️</span>
+                                <span class="menu-text">الإعدادات المتقدمة</span>
+                                <span class="menu-arrow">←</span>
+                            </button>
+                            
+                            <button class="menu-item" id="menu-zones">
+                                <span class="menu-icon">📍</span>
+                                <span class="menu-text">المناطق</span>
+                                <span class="menu-arrow">←</span>
+                            </button>
+                            
+                            <button class="menu-item" id="menu-share">
+                                <span class="menu-icon">📤</span>
+                                <span class="menu-text">مشاركة الموقع</span>
+                                <span class="menu-arrow">←</span>
+                            </button>
+                            
+                            <button class="menu-item" id="menu-debug">
+                                <span class="menu-icon">🔧</span>
+                                <span class="menu-text">التشخيص</span>
+                                <span class="menu-arrow">←</span>
+                            </button>
+                            
+                            <button class="menu-item" id="menu-help">
+                                <span class="menu-icon">❓</span>
+                                <span class="menu-text">المساعدة</span>
+                                <span class="menu-arrow">←</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- App Info -->
+                    <div class="menu-section">
+                        <div class="app-info">
+                            <div class="app-version">الإصدار 2.1.0</div>
+                            <div class="app-build">Build 2024.12</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

@@ -686,6 +686,9 @@ class AmmanDriverGuide {
     // Share system
     this.setupShareSystem()
 
+    // Menu system
+    this.setupMenuSystem()
+
     this.logExecution("✅ Driver interface events configured", "success")
   }
 
@@ -1100,6 +1103,7 @@ class AmmanDriverGuide {
       center: [this.currentLocation.lng, this.currentLocation.lat],
       zoom: 15,
       duration: 1000,
+      essential: true,
     })
   }
 
@@ -2292,6 +2296,151 @@ class AmmanDriverGuide {
 
   saveFavoriteContacts() {
     localStorage.setItem("driverFavoriteContacts", JSON.stringify(this.favoriteContacts))
+  }
+
+  setupMenuSystem() {
+    const sideMenu = document.getElementById("side-menu")
+    const menuToggle = document.getElementById("menu-toggle")
+    const closeMenu = document.getElementById("close-menu")
+    const menuOverlay = sideMenu.querySelector(".menu-overlay")
+
+    // Open menu
+    menuToggle.addEventListener("click", () => {
+      this.openMenu()
+    })
+
+    // Close menu
+    closeMenu.addEventListener("click", () => {
+      this.closeMenu()
+    })
+
+    // Close on overlay click
+    menuOverlay.addEventListener("click", () => {
+      this.closeMenu()
+    })
+
+    // Quick settings toggles
+    document.getElementById("menu-voice-toggle").addEventListener("change", (e) => {
+      this.voiceEnabled = e.target.checked
+      this.updateVoiceButton()
+      document.getElementById("voice-enabled").checked = e.target.checked
+    })
+
+    document.getElementById("menu-safety-toggle").addEventListener("change", (e) => {
+      this.safetyMode = e.target.checked
+      this.updateSafetyMode()
+      document.getElementById("safety-mode-setting").checked = e.target.checked
+      document.getElementById("safety-mode").classList.toggle("active", e.target.checked)
+    })
+
+    document.getElementById("menu-auto-refresh").addEventListener("change", (e) => {
+      this.autoRefresh = e.target.checked
+      document.getElementById("auto-refresh").checked = e.target.checked
+    })
+
+    document.getElementById("menu-auto-text").addEventListener("change", (e) => {
+      this.autoSwitchToText = e.target.checked
+      document.getElementById("auto-switch-text").checked = e.target.checked
+      this.saveUserPreferences()
+    })
+
+    // Map style selector
+    document.querySelectorAll(".style-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const style = e.currentTarget.dataset.style
+        this.changeMapStyle(style)
+
+        // Update active state
+        document.querySelectorAll(".style-btn").forEach((b) => b.classList.remove("active"))
+        e.currentTarget.classList.add("active")
+
+        // Update main settings
+        document.getElementById("map-style-setting").value = style
+      })
+    })
+
+    // Menu items
+    document.getElementById("menu-settings").addEventListener("click", () => {
+      this.closeMenu()
+      this.switchTab("settings")
+      this.showToast("تم فتح الإعدادات المتقدمة", "info")
+    })
+
+    document.getElementById("menu-zones").addEventListener("click", () => {
+      this.closeMenu()
+      this.switchTab("zones")
+      this.showToast("تم فتح قائمة المناطق", "info")
+    })
+
+    document.getElementById("menu-share").addEventListener("click", () => {
+      this.closeMenu()
+      this.openShareModal()
+    })
+
+    document.getElementById("menu-debug").addEventListener("click", () => {
+      this.closeMenu()
+      this.switchTab("debug")
+      this.showToast("تم فتح أدوات التشخيص", "info")
+    })
+
+    document.getElementById("menu-help").addEventListener("click", () => {
+      this.closeMenu()
+      this.showHelpDialog()
+    })
+
+    // Sync initial states
+    this.syncMenuSettings()
+  }
+
+  openMenu() {
+    const sideMenu = document.getElementById("side-menu")
+    sideMenu.classList.add("show")
+    this.playVoiceAlert("فتح القائمة الرئيسية")
+    this.logExecution("📱 Side menu opened", "info")
+  }
+
+  closeMenu() {
+    const sideMenu = document.getElementById("side-menu")
+    sideMenu.classList.remove("show")
+    this.logExecution("📱 Side menu closed", "info")
+  }
+
+  syncMenuSettings() {
+    // Sync toggle states with main settings
+    document.getElementById("menu-voice-toggle").checked = this.voiceEnabled
+    document.getElementById("menu-safety-toggle").checked = this.safetyMode
+    document.getElementById("menu-auto-refresh").checked = this.autoRefresh
+    document.getElementById("menu-auto-text").checked = this.autoSwitchToText
+
+    // Sync map style
+    document.querySelectorAll(".style-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.style === this.currentMapStyle)
+    })
+  }
+
+  showHelpDialog() {
+    const helpContent = `
+    🚗 دليل السائق - المساعدة
+
+    الاختصارات:
+    • Alt + V: تفعيل/إيقاف الصوت
+    • Alt + N: البحث عن أقرب منطقة
+    • Alt + R: تحديث المقترحات
+    • Alt + S: تفعيل وضع الأمان
+
+    الميزات:
+    • التنبيهات الصوتية الذكية
+    • التبديل التلقائي لوضع النص أثناء القيادة
+    • مشاركة الموقع المباشرة
+    • تتبع المناطق ذات الطلب العالي
+
+    للدعم الفني:
+    تواصل معنا عبر الإعدادات > التشخيص > تصدير السجلات
+  `
+
+    alert(helpContent)
+    this.playVoiceAlert("تم عرض دليل المساعدة")
+    this.logExecution("❓ Help dialog shown", "info")
   }
 }
 

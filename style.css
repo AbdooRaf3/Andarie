@@ -49,6 +49,9 @@
 html {
   font-size: 16px;
   scroll-behavior: smooth;
+  /* تحسين السكرولينق للأجهزة المحمولة */
+  -webkit-overflow-scrolling: touch;
+  overflow-x: hidden;
 }
 
 body {
@@ -60,7 +63,9 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow: hidden; /* Prevent scrolling during driving */
+  /* إزالة منع السكرولينق وإضافة تحكم أفضل */
+  overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 
 /* Driver Container */
@@ -69,6 +74,35 @@ body {
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  position: relative;
+}
+
+/* إضافة سكرولينق محسن للمحتوى */
+.scrollable-content {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(67, 97, 238, 0.3) transparent;
+}
+
+.scrollable-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollable-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollable-content::-webkit-scrollbar-thumb {
+  background: rgba(67, 97, 238, 0.3);
+  border-radius: 3px;
+  transition: background 0.3s ease;
+}
+
+.scrollable-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(67, 97, 238, 0.5);
 }
 
 /* Driver-Optimized Header */
@@ -571,6 +605,8 @@ body {
   flex-direction: column;
   position: relative;
   z-index: 50;
+  /* تحسين السكرولينق */
+  overflow: hidden;
 }
 
 .panel-tabs {
@@ -599,7 +635,26 @@ body {
   flex: 1;
   padding: var(--spacing-md);
   overflow-y: auto;
+  overflow-x: hidden;
   display: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  /* تحسين شريط التمرير */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(67, 97, 238, 0.3) transparent;
+}
+
+.tab-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tab-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tab-content::-webkit-scrollbar-thumb {
+  background: rgba(67, 97, 238, 0.3);
+  border-radius: 2px;
 }
 
 .tab-content.active {
@@ -633,106 +688,37 @@ body {
   gap: var(--spacing-md);
   max-height: 200px;
   overflow-y: auto;
-}
-
-.zone-card {
-  background: var(--background);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-md);
-  cursor: pointer;
-  transition: var(--transition);
-  border-left: 4px solid transparent;
-  box-shadow: var(--shadow-sm);
-  position: relative;
-  overflow: hidden;
-}
-
-.zone-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(45deg, transparent 30%, rgba(67, 97, 238, 0.1) 50%, transparent 70%);
-  transform: translateX(-100%);
-  transition: transform 0.6s ease;
-}
-
-.zone-card:hover::before {
-  transform: translateX(100%);
-}
-
-.zone-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-  border-left-color: var(--primary);
-}
-
-.zone-card.selected {
-  border-left-color: var(--primary);
-  background: rgba(67, 97, 238, 0.05);
-  box-shadow: var(--shadow-md);
-}
-
-.zone-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-sm);
-}
-
-.zone-name {
-  font-weight: 600;
-  font-size: var(--driver-font-large);
-  color: var(--text-primary);
-}
-
-.zone-demand-badge {
-  font-size: 0.8rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-}
-
-.zone-demand-badge.high {
-  background: rgba(76, 175, 80, 0.2);
-  color: var(--success);
-}
-
-.zone-demand-badge.medium {
-  background: rgba(255, 152, 0, 0.2);
-  color: var(--warning);
-}
-
-.zone-demand-badge.low {
-  background: rgba(244, 67, 54, 0.2);
-  color: var(--error);
-}
-
-.zone-info {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.zone-eta {
-  font-size: 0.85rem;
-  color: var(--primary);
-  font-weight: 600;
-  margin-top: var(--spacing-xs);
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
   padding: var(--spacing-xs);
-  background: rgba(67, 97, 238, 0.1);
-  border-radius: var(--radius-sm);
-  text-align: center;
+  /* تحسين شريط التمرير */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(67, 97, 238, 0.3) transparent;
 }
 
-.zone-safety {
-  font-size: 0.85rem;
-  color: var(--success);
-  font-weight: 600;
-  margin-top: var(--spacing-xs);
+.zones-grid::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.zones-grid::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 2px;
+}
+
+.zones-grid::-webkit-scrollbar-thumb {
+  background: rgba(67, 97, 238, 0.4);
+  border-radius: 2px;
+  transition: background 0.3s ease;
+}
+
+.zones-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(67, 97, 238, 0.6);
+}
+
+.zones-grid::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* Settings Tab */
@@ -1259,6 +1245,8 @@ body {
   overflow: hidden;
   box-shadow: var(--shadow-lg);
   animation: slideUp 0.3s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 @keyframes slideUp {
@@ -1332,6 +1320,27 @@ body {
   display: none;
   max-height: 400px;
   overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  flex: 1;
+  /* تحسين شريط التمرير */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(67, 97, 238, 0.3) transparent;
+}
+
+.share-tab-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.share-tab-content::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 2px;
+}
+
+.share-tab-content::-webkit-scrollbar-thumb {
+  background: rgba(67, 97, 238, 0.4);
+  border-radius: 2px;
 }
 
 .share-tab-content.active {
@@ -1375,6 +1384,7 @@ body {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--spacing-md);
+  scroll-snap-type: none;
 }
 
 .share-option-btn {
@@ -1472,58 +1482,29 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  padding: var(--spacing-xs);
+  /* تحسين شريط التمرير */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(67, 97, 238, 0.3) transparent;
 }
 
-.contact-item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: var(--transition);
+.favorite-contacts::-webkit-scrollbar {
+  width: 4px;
 }
 
-.contact-item:hover {
-  background: var(--background);
-  border-color: var(--primary);
+.favorite-contacts::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 2px;
 }
 
-.contact-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--primary);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 1.2rem;
-}
-
-.contact-info {
-  flex: 1;
-}
-
-.contact-name {
-  font-size: var(--driver-font-large);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.contact-phone {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.contact-type {
-  font-size: 0.8rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--text-secondary);
+.favorite-contacts::-webkit-scrollbar-thumb {
+  background: rgba(67, 97, 238, 0.4);
+  border-radius: 2px;
 }
 
 /* Live Tracking */
@@ -1850,4 +1831,173 @@ body {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* مؤشرات السكرولينق */
+.scroll-indicator {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 50px;
+  background: rgba(67, 97, 238, 0.2);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 10;
+}
+
+.scroll-indicator.visible {
+  opacity: 1;
+}
+
+.scroll-indicator::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 30%;
+  background: var(--primary);
+  border-radius: 2px;
+  transition: transform 0.3s ease;
+}
+
+/* رسوم متحركة للسكرولينق */
+@keyframes smoothScroll {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.scroll-item {
+  animation: smoothScroll 0.3s ease;
+}
+
+/* تحسين الانتقال بين التبويبات */
+.tab-content {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.tab-content:not(.active) {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+}
+
+.tab-content.active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* تحسينات للأجهزة المحمولة */
+@media (max-width: 768px) {
+  .zones-grid {
+    grid-template-columns: 1fr;
+    max-height: 180px;
+    gap: var(--spacing-sm);
+  }
+
+  .tab-content {
+    padding: var(--spacing-sm);
+  }
+
+  .bottom-panel {
+    --driver-bottom-panel-height: 250px;
+  }
+
+  /* تحسين السكرولينق للشاشات الصغيرة */
+  .scrollable-content::-webkit-scrollbar {
+    width: 3px;
+  }
+
+  .zones-grid::-webkit-scrollbar {
+    width: 3px;
+  }
+}
+
+@media (max-width: 480px) {
+  .zones-grid {
+    max-height: 150px;
+  }
+
+  .favorite-contacts {
+    max-height: 200px;
+  }
+
+  .share-tab-content {
+    max-height: 300px;
+    padding: var(--spacing-md);
+  }
+}
+
+/* تحسينات الأداء */
+.zone-card,
+.contact-item,
+.share-option-btn {
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* تحسين السكرولينق بالزخم */
+.scrollable-content,
+.tab-content,
+.zones-grid,
+.favorite-contacts,
+.share-tab-content {
+  scroll-snap-type: y proximity;
+  overscroll-behavior: contain;
+}
+
+.zone-card {
+  scroll-snap-align: start;
+}
+
+/* مؤشرات السكرولينق البصرية */
+.scroll-fade-top,
+.scroll-fade-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 20px;
+  pointer-events: none;
+  z-index: 5;
+  transition: opacity 0.3s ease;
+}
+
+.scroll-fade-top {
+  top: 0;
+  background: linear-gradient(to bottom, var(--card-bg), transparent);
+}
+
+.scroll-fade-bottom {
+  bottom: 0;
+  background: linear-gradient(to top, var(--card-bg), transparent);
+}
+
+.zones-grid-container,
+.contacts-container {
+  position: relative;
+}
+
+.zones-grid-container .scroll-fade-top,
+.zones-grid-container .scroll-fade-bottom,
+.contacts-container .scroll-fade-top,
+.contacts-container .scroll-fade-bottom {
+  opacity: 0;
+}
+
+.zones-grid-container.has-scroll .scroll-fade-top,
+.zones-grid-container.has-scroll .scroll-fade-bottom,
+.contacts-container.has-scroll .scroll-fade-top,
+.contacts-container.has-scroll .scroll-fade-bottom {
+  opacity: 1;
 }

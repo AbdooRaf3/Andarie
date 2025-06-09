@@ -315,6 +315,9 @@ class AmmanDriverGuide {
       this.setupEventListeners()
       this.setupDriverInterface()
 
+      // تحسين السكرولينق
+      this.setupScrollEnhancements()
+
       // Start location tracking
       this.startLocationTracking()
 
@@ -1000,47 +1003,39 @@ class AmmanDriverGuide {
         // Update location display if in text mode
         if (this.viewMode === "text") {
           this.updateLocationDisplay()
-          this.updateDirectionInstructions()
         }
 
-        // Reverse geocode for better address display
-        if (hasMovedSignificantly) {
-          this.reverseGeocode(newLocation.lat, newLocation.lng)
+        // Check for auto-switch to text mode
+        if (this.autoSwitchToText && newLocation.speed && newLocation.speed * 3.6 > this.textModeSpeed) {
+          this.switchViewMode("text")
         }
       }
+    } else {
+      this.logExecution(`📍 Location update ignored due to low accuracy: ${newLocation.accuracy}m`, "warning")
     }
   }
 
   handleLocationError(error) {
-    this.logExecution(`❌ Location error: ${error.message}`, "error")
-    this.updateDebugInfo("location-state", "خطأ")
+    this.logExecution(`📍 Location error: ${error.message} (${error.code})`, "error")
+    this.updateDebugState("location-state", "خطأ")
 
-    let message = "خطأ في تحديد الموقع"
     switch (error.code) {
       case error.PERMISSION_DENIED:
-        message = "تم رفض إذن الوصول للموقع"
+        this.showToast("تم رفض إذن تحديد الموقع", "error")
         break
       case error.POSITION_UNAVAILABLE:
-        message = "الموقع غير متاح"
+        this.showToast("الموقع غير متوفر", "warning")
         break
       case error.TIMEOUT:
-        message = "انتهت مهلة تحديد الموقع"
+        this.showToast("انتهت مهلة تحديد الموقع", "warning")
         break
+      default:
+        this.showToast("خطأ غير معروف في تحديد الموقع", "error")
     }
-
-    this.showToast(message, "error")
-    this.playVoiceAlert(message, "urgent")
   }
 
   validateLocationAccuracy(location) {
-    return (
-      location.accuracy &&
-      location.accuracy <= 100 &&
-      location.lat >= -90 &&
-      location.lat <= 90 &&
-      location.lng >= -180 &&
-      location.lng <= 180
-    )
+    return location.accuracy <= this.highAccuracyThreshold
   }
 
   detectSignificantMovement(newLocation) {
@@ -1057,1256 +1052,546 @@ class AmmanDriverGuide {
   }
 
   updateCurrentLocationDisplay() {
-    if (!this.currentLocation) {
-      document.getElementById("current-area-display").textContent = "غير محدد"
-      return
+    if (!this.currentLocation) return
+
+    document.getElementById("current-location-lat").textContent = this.currentLocation.lat.toFixed(5)
+    document.getElementById("current-location-lng").textContent = this.currentLocation.lng.toFixed(5)
+    document.getElementById("current-location-accuracy").textContent = `${Math.round(this.currentLocation.accuracy)}م`
+
+    if (this.currentLocation.heading !== null) {
+      document.getElementById("current-location-heading").textContent = `${Math.round(this.currentLocation.heading)}°`
+    } else {
+      document.getElementById("current-location-heading").textContent = "N/A"
     }
 
-    // Find nearest zone for display
-    const nearest = this.findNearestZone(this.currentLocation)
-    if (nearest) {
-      const distance =
-        this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, nearest.lat, nearest.lng) / 1000
-
-      const distanceText = distance < 1 ? `${Math.round(distance * 1000)} م` : `${distance.toFixed(1)} كم`
-
-      document.getElementById("current-area-display").textContent = `${nearest.name} (${distanceText})`
+    if (this.currentLocation.speed !== null) {
+      document.getElementById("current-location-speed").textContent =
+        `${(this.currentLocation.speed * 3.6).toFixed(1)} كم/س`
     } else {
-      document.getElementById("current-area-display").textContent = "منطقة غير معروفة"
+      document.getElementById("current-location-speed").textContent = "0 كم/س"
     }
   }
 
   updateCurrentLocationOnMap() {
-    if (!this.currentLocation || !this.map) return
-
-    const locationFeature = {
-      type: "Feature",
-      geometry: {
-        type: "Point",
-        coordinates: [this.currentLocation.lng, this.currentLocation.lat],
-      },
-      properties: {
-        type: "current-location",
-      },
-    }
+    if (!this.map || !this.currentLocation) return
 
     this.map.getSource("current-location").setData({
       type: "FeatureCollection",
-      features: [locationFeature],
+      features: [
+        {
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [this.currentLocation.lng, this.currentLocation.lat],
+          },
+        },
+      ],
     })
 
-    // Center map on location
-    this.map.flyTo({
-      center: [this.currentLocation.lng, this.currentLocation.lat],
-      zoom: 15,
-      duration: 1000,
-    })
+    // Optionally center the map on the new location
+    if (!this.navigationActive) {
+      this.map.flyTo({
+        center: [this.currentLocation.lng, this.currentLocation.lat],
+        duration: 3000,
+      })
+    }
   }
 
   updateSuggestedZone() {
     if (!this.currentLocation) return
 
-    const suggestion = this.findBestZoneSuggestion()
-    if (suggestion) {
-      this.suggestedZone = suggestion
+    if (this.suggestedZone) {
       this.updateSuggestedZoneDisplay()
-
-      // Announce new suggestion if it changed
-      if (!this.previousSuggestion || this.previousSuggestion.name !== suggestion.name) {
-        this.playVoiceAlert(`المنطقة المقترحة الجديدة: ${suggestion.name}`)
-        this.previousSuggestion = suggestion
-      }
-
-      // Update direction instructions in text mode
-      if (this.viewMode === "text") {
-        this.updateDirectionInstructions()
-
-        if (this.enhancedVoiceInTextMode && suggestion) {
-          const direction = this.getDirectionFromBearing(
-            this.calculateBearing(this.currentLocation.lat, this.currentLocation.lng, suggestion.lat, suggestion.lng),
-          )
-
-          this.playVoiceAlert(`اتجه ${direction} نحو ${suggestion.name}`)
-        }
-      }
+    } else {
+      this.updateSuggestedZoneDisplay()
     }
   }
 
-  findBestZoneSuggestion() {
-    const highDemandZones = this.zones.filter((zone) => this.getCurrentDensity(zone) >= 6)
-
-    if (highDemandZones.length === 0) return null
-
-    const zonesWithDistance = highDemandZones.map((zone) => ({
-      ...zone,
-      distance: this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, zone.lat, zone.lng),
-      density: this.getCurrentDensity(zone),
-    }))
-
-    // Sort by combination of demand and distance
-    zonesWithDistance.sort((a, b) => {
-      const scoreA = a.density * 1000 - a.distance
-      const scoreB = b.density * 1000 - b.distance
-      return scoreB - scoreA
-    })
-
-    return zonesWithDistance[0]
+  updateDemandMode() {
+    this.logExecution("🚦 Updating demand levels...", "info")
+    this.updateZonesList()
+    this.updateZoneMarkers()
   }
 
-  findNearestHighDemandZone() {
-    if (!this.currentLocation) return null
+  updateZonesList() {
+    const zonesList = document.getElementById("zones-list")
+    zonesList.innerHTML = ""
 
-    const highDemandZones = this.zones.filter((zone) => this.getCurrentDensity(zone) >= 7)
+    let filteredZones = [...this.zones]
 
-    if (highDemandZones.length === 0) return null
+    if (this.highDemandOnly) {
+      filteredZones = filteredZones.filter((zone) => this.getCurrentDensity(zone) >= 7)
+    }
 
-    let nearest = null
-    let minDistance = Number.POSITIVE_INFINITY
-
-    highDemandZones.forEach((zone) => {
-      const distance = this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, zone.lat, zone.lng)
-
-      if (distance < minDistance) {
-        minDistance = distance
-        nearest = { zone, distance }
+    // Sort zones based on selected option
+    const sortOption = document.getElementById("zone-sort").value
+    filteredZones.sort((a, b) => {
+      if (sortOption === "name") {
+        return a.name.localeCompare(b.name, "ar")
+      } else if (sortOption === "density") {
+        return this.getCurrentDensity(b) - this.getCurrentDensity(a)
+      } else if (sortOption === "distance") {
+        if (!this.currentLocation) return 0
+        const distanceA = this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, a.lat, a.lng)
+        const distanceB = this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, b.lat, b.lng)
+        return distanceA - distanceB
       }
     })
 
-    return nearest
+    filteredZones.forEach((zone) => {
+      const li = document.createElement("li")
+      li.textContent = `${zone.name} (${this.getCurrentDensity(zone)})`
+      li.addEventListener("click", () => this.selectZone(zone))
+      zonesList.appendChild(li)
+    })
   }
 
   updateZoneMarkers() {
     if (!this.map) return
 
-    const filteredZones = this.getFilteredZones()
+    let filteredZones = [...this.zones]
 
-    const zoneFeatures = filteredZones.map((zone) => {
-      const density = this.getCurrentDensity(zone)
+    if (this.highDemandOnly) {
+      filteredZones = filteredZones.filter((zone) => this.getCurrentDensity(zone) >= 7)
+    }
 
-      return {
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [zone.lng, zone.lat],
-        },
-        properties: {
-          name: zone.name,
-          density: density,
-          demandLevel: this.getDemandLevel(density),
-          region: zone.region || "",
-          safetyRating: zone.safety_rating || 5,
-        },
-      }
-    })
+    const features = filteredZones.map((zone) => ({
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [zone.lng, zone.lat],
+      },
+      properties: {
+        name: zone.name,
+        density: this.getCurrentDensity(zone),
+      },
+    }))
 
     this.map.getSource("zones").setData({
       type: "FeatureCollection",
-      features: zoneFeatures,
+      features: features,
     })
-  }
-
-  updateZonesList() {
-    const container = document.getElementById("zones-grid")
-    container.innerHTML = ""
-
-    const filteredZones = this.getFilteredZones()
-    const sortedZones = this.sortZonesByCurrentCriteria(filteredZones)
-
-    sortedZones.forEach((zone) => {
-      const card = this.createZoneCard(zone)
-      container.appendChild(card)
-    })
-  }
-
-  createZoneCard(zone) {
-    const density = this.getCurrentDensity(zone)
-    const demandLevel = this.getDemandLevel(density)
-    const demandText = this.getDemandText(demandLevel)
-
-    const card = document.createElement("div")
-    card.className = `zone-card ${demandLevel}-demand`
-
-    let distanceText = ""
-    if (this.currentLocation) {
-      const distance =
-        this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, zone.lat, zone.lng) / 1000
-
-      distanceText = distance < 1 ? `${Math.round(distance * 1000)} م` : `${distance.toFixed(1)} كم`
-    }
-
-    card.innerHTML = `
-    <div class="zone-card-header">
-      <div class="zone-name">${zone.name}</div>
-      <div class="zone-demand-badge ${demandLevel}">${demandText}</div>
-    </div>
-    <div class="zone-info">
-      <span>الطلب: ${density}</span>
-      <span>${distanceText}</span>
-    </div>
-    ${zone.safety_rating ? `<div class="zone-safety">الأمان: ${zone.safety_rating}/10</div>` : ""}
-  `
-
-    card.addEventListener("click", () => {
-      this.selectZone(zone)
-    })
-
-    return card
-  }
-
-  sortZonesByCurrentCriteria(zones) {
-    const sortBy = document.getElementById("zone-sort").value
-
-    return zones.sort((a, b) => {
-      switch (sortBy) {
-        case "demand":
-          return this.getCurrentDensity(b) - this.getCurrentDensity(a)
-        case "distance":
-          if (!this.currentLocation) return 0
-          const distA = this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, a.lat, a.lng)
-          const distB = this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, b.lat, b.lng)
-          return distA - distB
-        case "name":
-          return a.name.localeCompare(b.name, "ar")
-        default:
-          return 0
-      }
-    })
-  }
-
-  getFilteredZones() {
-    if (!this.highDemandOnly) {
-      return this.zones
-    }
-    return this.zones.filter((zone) => this.getCurrentDensity(zone) >= 6)
   }
 
   getCurrentDensity(zone) {
     const hour = new Date().getHours()
-    const isPeakTime = (hour >= 11 && hour <= 14) || (hour >= 17 && hour <= 21)
-    return isPeakTime ? zone.density_peak : zone.density_off
+    return hour >= 7 && hour <= 22 ? zone.density_peak : zone.density_off
   }
 
   getDemandLevel(density) {
-    if (density >= 7) return "high"
-    if (density >= 4) return "medium"
-    return "low"
-  }
-
-  getDemandText(level) {
-    switch (level) {
-      case "high":
-        return "عالي"
-      case "medium":
-        return "متوسط"
-      case "low":
-        return "منخفض"
-      default:
-        return "غير محدد"
-    }
-  }
-
-  updateDemandMode() {
-    const hour = new Date().getHours()
-    const isPeakTime = (hour >= 11 && hour <= 14) || (hour >= 17 && hour <= 21)
-    const mode = isPeakTime ? "ساعات الذروة" : "ساعات الهدوء"
-    const currentTime = new Date().toLocaleTimeString("ar-JO", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-
-    document.getElementById("demand-mode-display").textContent = `${mode} (${currentTime})`
+    if (density >= 7) return "high-demand"
+    if (density >= 4) return "medium-demand"
+    return "low-demand"
   }
 
   highlightZoneOnMap(zone) {
-    if (!this.map) return
-
-    // Smooth fly animation to the selected zone
+    // Fly to the zone
     this.map.flyTo({
       center: [zone.lng, zone.lat],
-      zoom: 16,
+      zoom: 15,
       duration: 2000,
-      essential: true,
     })
 
-    // Add temporary highlight marker
-    this.addTemporaryHighlight(zone)
-  }
+    // Highlight the zone (e.g., change color temporarily)
+    const originalColor = this.map.getPaintProperty("zones-layer", "circle-color")
+    this.map.setPaintProperty("zones-layer", "circle-color", "#ffff00")
 
-  // إضافة دالة لإضافة تمييز مؤقت
-  addTemporaryHighlight(zone) {
-    // Remove existing highlight
-    if (this.map.getLayer("zone-highlight")) {
-      this.map.removeLayer("zone-highlight")
-      this.map.removeSource("zone-highlight")
-    }
-
-    // Add highlight source and layer
-    this.map.addSource("zone-highlight", {
-      type: "geojson",
-      data: {
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [zone.lng, zone.lat],
-        },
-      },
-    })
-
-    this.map.addLayer({
-      id: "zone-highlight",
-      type: "circle",
-      source: "zone-highlight",
-      paint: {
-        "circle-radius": 25,
-        "circle-color": "#4361ee",
-        "circle-opacity": 0.3,
-        "circle-stroke-width": 3,
-        "circle-stroke-color": "#4361ee",
-        "circle-stroke-opacity": 0.8,
-      },
-    })
-
-    // Remove highlight after 3 seconds
     setTimeout(() => {
-      if (this.map.getLayer("zone-highlight")) {
-        this.map.removeLayer("zone-highlight")
-        this.map.removeSource("zone-highlight")
-      }
+      this.map.setPaintProperty("zones-layer", "circle-color", originalColor)
     }, 3000)
-  }
-
-  findNearestZone(location) {
-    if (this.zones.length === 0) return null
-
-    let nearest = this.zones[0]
-    let minDistance = this.haversineDistance(location.lat, location.lng, nearest.lat, nearest.lng)
-
-    this.zones.forEach((zone) => {
-      const distance = this.haversineDistance(location.lat, location.lng, zone.lat, zone.lng)
-      if (distance < minDistance) {
-        minDistance = distance
-        nearest = zone
-      }
-    })
-
-    return nearest
-  }
-
-  haversineDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3
-    const φ1 = (lat1 * Math.PI) / 180
-    const φ2 = (lat2 * Math.PI) / 180
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180
-
-    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-
-    return R * c
   }
 
   changeMapStyle(style) {
     this.currentMapStyle = style
-    if (this.map) {
-      this.map.setStyle(this.mapStyles[style])
-      this.map.once("styledata", () => {
-        this.setupMapSources()
-        this.updateZoneMarkers()
-        this.updateCurrentLocationOnMap()
+    this.map.setStyle(this.mapStyles[style])
+    this.saveUserPreferences()
+  }
+
+  sortZones(sortBy) {
+    this.updateZonesList()
+    this.saveUserPreferences()
+  }
+
+  setupScrollEnhancements() {
+    // Smooth scrolling for zone list
+    const zonesList = document.getElementById("zones-list")
+    if (zonesList) {
+      zonesList.addEventListener("wheel", (e) => {
+        e.preventDefault()
+        zonesList.scrollLeft += e.deltaY
       })
     }
   }
 
-  sortZones(criteria) {
-    this.updateZonesList()
-  }
-
-  testVoiceSystem() {
-    this.playVoiceAlert("اختبار النظام الصوتي. النظام يعمل بشكل صحيح")
-  }
-
   handleKeyboardShortcuts(e) {
-    // Driver-friendly keyboard shortcuts
-    if (e.altKey) {
-      switch (e.key) {
-        case "v":
-          e.preventDefault()
-          this.toggleVoice()
-          break
-        case "n":
-          e.preventDefault()
-          this.findNearestZone()
-          break
-        case "r":
-          e.preventDefault()
-          this.refreshSuggestion()
-          break
-        case "s":
-          e.preventDefault()
-          this.toggleSafetyMode(document.getElementById("safety-mode"))
-          break
-      }
+    if (e.key === "v") {
+      this.toggleVoice()
+    } else if (e.key === "n") {
+      this.startNavigation()
+    } else if (e.key === "r") {
+      this.refreshSuggestion()
+    } else if (e.key === "e") {
+      this.handleEmergency()
     }
-  }
-
-  forceReload() {
-    this.logExecution("🔄 Force reloading driver application...", "info")
-    location.reload()
-  }
-
-  exportLogs() {
-    const logs = this.executionLog
-      .map((log) => `[${log.timestamp}] ${log.type.toUpperCase()}: ${log.message}`)
-      .join("\n")
-
-    const blob = new Blob([logs], { type: "text/plain" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `driver-logs-${new Date().toISOString().split("T")[0]}.txt`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  updateDebugInfo(key, value) {
-    const element = document.getElementById(key)
-    if (element) {
-      element.textContent = value
-    }
-  }
-
-  showLoadingOverlay(message) {
-    const overlay = document.getElementById("loading-overlay")
-    const text = overlay.querySelector(".loading-text")
-    text.textContent = message
-    overlay.style.display = "flex"
-  }
-
-  hideLoadingOverlay() {
-    const overlay = document.getElementById("loading-overlay")
-    overlay.style.display = "none"
-  }
-
-  showToast(message, type = "info") {
-    const toast = document.getElementById("toast")
-    toast.textContent = message
-    toast.className = `toast ${type} show`
-
-    setTimeout(() => {
-      toast.classList.remove("show")
-    }, 4000)
-  }
-
-  logExecution(message, type = "info") {
-    const timestamp = new Date().toLocaleTimeString()
-    const logEntry = { timestamp, message, type }
-    this.executionLog.push(logEntry)
-
-    // Keep only last 100 entries
-    if (this.executionLog.length > 100) {
-      this.executionLog.shift()
-    }
-
-    console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`)
   }
 
   setupViewToggle() {
-    const viewToggleBtn = document.getElementById("view-toggle")
+    const viewToggle = document.getElementById("view-toggle")
 
-    viewToggleBtn.addEventListener("click", () => {
-      this.toggleViewMode()
+    viewToggle.addEventListener("click", () => {
+      this.switchViewMode(this.viewMode === "map" ? "text" : "map")
     })
 
-    // Auto-switch based on speed if enabled
-    if (this.autoSwitchToText) {
-      setInterval(() => {
-        this.checkAutoSwitch()
-      }, 2000)
-    }
+    this.updateViewMode()
   }
 
-  toggleViewMode() {
-    this.viewMode = this.viewMode === "map" ? "text" : "map"
+  switchViewMode(mode) {
+    this.viewMode = mode
     this.updateViewMode()
-
-    const message = this.viewMode === "text" ? "تم التبديل إلى وضع النص المبسط" : "تم التبديل إلى وضع الخريطة"
-
-    this.showToast(message, "info")
-    this.playVoiceAlert(message)
-
-    // Save preference
-    localStorage.setItem("driverViewMode", this.viewMode)
   }
 
   updateViewMode() {
-    const container = document.querySelector(".driver-container")
-    const map = document.getElementById("map")
-    const locationCard = document.getElementById("location-display-card")
-    const viewToggleBtn = document.getElementById("view-toggle")
+    const viewToggle = document.getElementById("view-toggle")
+    const mapContainer = document.getElementById("map-container")
+    const textContainer = document.getElementById("text-container")
 
-    if (this.viewMode === "text") {
-      container.classList.add("text-only-mode")
-      map.classList.add("minimized")
-      locationCard.classList.add("active")
-      viewToggleBtn.classList.add("text-mode")
-      viewToggleBtn.textContent = "📱"
-      viewToggleBtn.setAttribute("aria-label", "تبديل إلى وضع الخريطة")
-
-      this.updateLocationDisplay()
-      this.updateDirectionInstructions()
+    if (this.viewMode === "map") {
+      viewToggle.textContent = "عرض نصي"
+      mapContainer.classList.remove("hidden")
+      textContainer.classList.add("hidden")
     } else {
-      container.classList.remove("text-only-mode")
-      map.classList.remove("minimized")
-      locationCard.classList.remove("active")
-      viewToggleBtn.classList.remove("text-mode")
-      viewToggleBtn.textContent = "🗺️"
-      viewToggleBtn.setAttribute("aria-label", "تبديل إلى وضع النص")
+      viewToggle.textContent = "عرض الخريطة"
+      mapContainer.classList.add("hidden")
+      textContainer.classList.remove("hidden")
+      this.updateLocationDisplay()
     }
 
-    // Resize map when switching back
-    if (this.viewMode === "map" && this.map) {
-      setTimeout(() => {
-        this.map.resize()
-      }, 300)
-    }
+    this.saveUserPreferences()
   }
 
   updateLocationDisplay() {
-    if (this.viewMode !== "text") return
+    if (!this.currentLocation) {
+      document.getElementById("location-display").textContent = "جاري تحديد الموقع..."
+      return
+    }
 
-    const locationName = document.getElementById("current-location-name")
-    const accuracyInfo = document.getElementById("accuracy-info")
-    const speedInfo = document.getElementById("speed-info")
+    this.reverseGeocode(this.currentLocation.lat, this.currentLocation.lng)
+      .then((address) => {
+        this.lastKnownAddress = address
+        this.updateDirectionInstructions()
+        this.displayLocationInfo()
+      })
+      .catch((error) => {
+        this.logExecution(`⚠️ Geocoding error: ${error.message}`, "warning")
+        this.lastKnownAddress = "خطأ في تحديد العنوان"
+        this.displayLocationInfo()
+      })
+  }
 
-    if (this.currentLocation) {
-      // Update location name
-      if (this.lastKnownAddress) {
-        locationName.textContent = this.lastKnownAddress
-      } else {
-        const nearest = this.findNearestZone(this.currentLocation)
-        if (nearest) {
-          const distance =
-            this.haversineDistance(this.currentLocation.lat, this.currentLocation.lng, nearest.lat, nearest.lng) / 1000
+  async reverseGeocode(latitude, longitude) {
+    const apiKey = "YOUR_GEOAPIFY_API_KEY" // Replace with your actual API key
+    const url = `https://api.geoapify.com/v1/geocode/reverse?lat=${latitude}&lon=${longitude}&apiKey=${apiKey}`
 
-          const distanceText = distance < 1 ? `${Math.round(distance * 1000)} م` : `${distance.toFixed(1)} كم`
-
-          locationName.textContent = `قرب ${nearest.name} (${distanceText})`
-        } else {
-          locationName.textContent = "موقع غير معروف"
-        }
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`Geocoding API error: ${response.status}`)
       }
+      const data = await response.json()
 
-      // Update accuracy
-      accuracyInfo.textContent = `${Math.round(this.currentLocation.accuracy)}م`
-
-      // Update speed
-      if (this.currentLocation.speed !== null && this.currentLocation.speed !== undefined) {
-        const speedKmh = Math.round(this.currentLocation.speed * 3.6)
-        speedInfo.textContent = `${speedKmh} كم/س`
+      if (data.features && data.features.length > 0) {
+        const address = data.features[0].properties.formatted
+        return address
       } else {
-        speedInfo.textContent = "--"
+        return "العنوان غير متوفر"
       }
-    } else {
-      locationName.textContent = "جاري تحديد الموقع..."
-      accuracyInfo.textContent = "--"
-      speedInfo.textContent = "--"
+    } catch (error) {
+      this.logExecution(`⚠️ Reverse geocoding failed: ${error.message}`, "warning")
+      return "خطأ في تحديد العنوان"
     }
   }
 
   updateDirectionInstructions() {
-    if (this.viewMode !== "text") return
+    // Placeholder for direction instructions
+    this.directionInstructions = "لا توجد تعليمات حالياً"
 
-    const directionIcon = document.getElementById("direction-icon")
-    const directionText = document.getElementById("direction-text")
+    if (this.suggestedZone) {
+      // Simulate direction instructions
+      this.directionInstructions = `اتجه نحو ${this.suggestedZone.name}. المسافة ${this.getDistanceToZone(this.suggestedZone)}`
 
-    if (this.suggestedZone && this.currentLocation) {
-      const bearing = this.calculateBearing(
-        this.currentLocation.lat,
-        this.currentLocation.lng,
-        this.suggestedZone.lat,
-        this.suggestedZone.lng,
-      )
-
-      const direction = this.getDirectionFromBearing(bearing)
-      const distance =
-        this.haversineDistance(
-          this.currentLocation.lat,
-          this.currentLocation.lng,
-          this.suggestedZone.lat,
-          this.suggestedZone.lng,
-        ) / 1000
-
-      directionIcon.textContent = this.getDirectionIcon(direction)
-
-      const distanceText = distance < 1 ? `${Math.round(distance * 1000)} متر` : `${distance.toFixed(1)} كيلومتر`
-
-      directionText.textContent = `اتجه ${direction} نحو ${this.suggestedZone.name} (${distanceText})`
-    } else {
-      directionIcon.textContent = "🎯"
-      directionText.textContent = "ابحث عن منطقة ذات طلب عالي"
-    }
-  }
-
-  calculateBearing(lat1, lng1, lat2, lng2) {
-    const dLng = ((lng2 - lng1) * Math.PI) / 180
-    const lat1Rad = (lat1 * Math.PI) / 180
-    const lat2Rad = (lat2 * Math.PI) / 180
-
-    const y = Math.sin(dLng) * Math.cos(lat2Rad)
-    const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLng)
-
-    const bearing = (Math.atan2(y, x) * 180) / Math.PI
-    return (bearing + 360) % 360
-  }
-
-  getDirectionFromBearing(bearing) {
-    const directions = [
-      { name: "شمالاً", min: 337.5, max: 22.5 },
-      { name: "شمال شرق", min: 22.5, max: 67.5 },
-      { name: "شرقاً", min: 67.5, max: 112.5 },
-      { name: "جنوب شرق", min: 112.5, max: 157.5 },
-      { name: "جنوباً", min: 157.5, max: 202.5 },
-      { name: "جنوب غرب", min: 202.5, max: 247.5 },
-      { name: "غرباً", min: 247.5, max: 292.5 },
-      { name: "شمال غرب", min: 292.5, max: 337.5 },
-    ]
-
-    for (const dir of directions) {
-      if (dir.min > dir.max) {
-        // Handle north direction wrap-around
-        if (bearing >= dir.min || bearing <= dir.max) {
-          return dir.name
-        }
-      } else {
-        if (bearing >= dir.min && bearing <= dir.max) {
-          return dir.name
-        }
-      }
-    }
-
-    return "شمالاً"
-  }
-
-  getDirectionIcon(direction) {
-    const icons = {
-      شمالاً: "⬆️",
-      "شمال شرق": "↗️",
-      شرقاً: "➡️",
-      "جنوب شرق": "↘️",
-      جنوباً: "⬇️",
-      "جنوب غرب": "↙️",
-      غرباً: "⬅️",
-      "شمال غرب": "↖️",
-    }
-
-    return icons[direction] || "➡️"
-  }
-
-  checkAutoSwitch() {
-    if (!this.autoSwitchToText || !this.currentLocation) return
-
-    const speed = this.currentLocation.speed
-    if (speed !== null && speed !== undefined) {
-      const speedKmh = speed * 3.6
-
-      if (speedKmh > this.textModeSpeed && this.viewMode === "map") {
-        this.viewMode = "text"
-        this.updateViewMode()
-        this.playVoiceAlert("تم التبديل التلقائي إلى وضع النص للقيادة الآمنة")
-      } else if (speedKmh <= 5 && this.viewMode === "text") {
-        this.viewMode = "map"
-        this.updateViewMode()
+      if (this.enhancedVoiceInTextMode) {
+        this.playVoiceAlert(this.directionInstructions)
       }
     }
   }
 
-  async reverseGeocode(lat, lng) {
-    try {
-      const response = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=ar`,
-      )
-
-      if (response.ok) {
-        const data = await response.json()
-
-        // Extract the most relevant address components
-        const addressComponents = [
-          data.locality,
-          data.localityInfo?.administrative?.[3]?.name,
-          data.localityInfo?.administrative?.[2]?.name,
-          data.city,
-          data.principalSubdivision,
-        ].filter(Boolean)
-
-        if (addressComponents.length > 0) {
-          this.lastKnownAddress = addressComponents[0]
-          this.updateLocationDisplay()
-          return this.lastKnownAddress
-        }
-      }
-    } catch (error) {
-      this.logExecution(`⚠️ Reverse geocoding failed: ${error.message}`, "warning")
-    }
-
-    return null
-  }
-
-  loadUserPreferences() {
-    // Load saved view mode
-    const savedViewMode = localStorage.getItem("driverViewMode")
-    if (savedViewMode && ["map", "text"].includes(savedViewMode)) {
-      this.viewMode = savedViewMode
-    }
-
-    // Load auto-switch preference
-    const autoSwitch = localStorage.getItem("autoSwitchToText")
-    if (autoSwitch !== null) {
-      this.autoSwitchToText = autoSwitch === "true"
-    }
-
-    // Load speed threshold
-    const speedThreshold = localStorage.getItem("textModeSpeed")
-    if (speedThreshold) {
-      this.textModeSpeed = Number.parseInt(speedThreshold)
-    }
-
-    // Update UI elements
-    document.getElementById("auto-switch-text").checked = this.autoSwitchToText
-    document.getElementById("text-mode-speed").value = this.textModeSpeed
-    document.getElementById("speed-display").textContent = this.textModeSpeed
-
-    const enhancedVoice = localStorage.getItem("enhancedVoiceInTextMode")
-    if (enhancedVoice !== null) {
-      this.enhancedVoiceInTextMode = enhancedVoice === "true"
-      document.getElementById("enhanced-voice-text").checked = this.enhancedVoiceInTextMode
-    }
-  }
-
-  saveUserPreferences() {
-    localStorage.setItem("driverViewMode", this.viewMode)
-    localStorage.setItem("autoSwitchToText", this.autoSwitchToText.toString())
-    localStorage.setItem("textModeSpeed", this.textModeSpeed.toString())
-    localStorage.setItem("enhancedVoiceInTextMode", this.enhancedVoiceInTextMode.toString())
+  displayLocationInfo() {
+    const locationDisplay = document.getElementById("location-display")
+    locationDisplay.textContent = this.lastKnownAddress + ". " + this.directionInstructions
   }
 
   setupShareSystem() {
     this.shareModal = document.getElementById("share-modal")
     this.addContactModal = document.getElementById("add-contact-modal")
 
-    // Load saved contacts
+    // Load favorite contacts
     this.loadFavoriteContacts()
 
     // Share button
-    document.getElementById("share-location").addEventListener("click", () => {
+    document.getElementById("share-btn").addEventListener("click", () => {
       this.openShareModal()
     })
 
-    // Close modals
-    document.getElementById("close-share-modal").addEventListener("click", () => {
-      this.closeShareModal()
-    })
-
-    document.getElementById("close-add-contact").addEventListener("click", () => {
-      this.closeAddContactModal()
-    })
-
-    // Share tabs
-    document.querySelectorAll(".share-tab-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        this.switchShareTab(e.target.dataset.tab)
-      })
-    })
-
-    // Share options
-    document.getElementById("share-whatsapp").addEventListener("click", () => {
-      this.shareViaWhatsApp()
-    })
-
-    document.getElementById("share-telegram").addEventListener("click", () => {
-      this.shareViaTelegram()
-    })
-
-    document.getElementById("share-sms").addEventListener("click", () => {
-      this.shareViaSMS()
-    })
-
-    document.getElementById("share-copy").addEventListener("click", () => {
-      this.copyLocationToClipboard()
-    })
-
-    document.getElementById("share-email").addEventListener("click", () => {
-      this.shareViaEmail()
-    })
-
-    document.getElementById("share-maps").addEventListener("click", () => {
-      this.shareViaGoogleMaps()
-    })
-
-    // Add contact
-    document.getElementById("add-contact").addEventListener("click", () => {
+    // Add contact button
+    document.getElementById("add-contact-btn").addEventListener("click", () => {
       this.openAddContactModal()
     })
 
-    document.getElementById("add-contact-form").addEventListener("submit", (e) => {
-      e.preventDefault()
-      this.saveNewContact()
+    // Send share button
+    document.getElementById("send-share-btn").addEventListener("click", () => {
+      this.sendShare()
     })
 
-    document.getElementById("cancel-add-contact").addEventListener("click", () => {
-      this.closeAddContactModal()
+    // Save contact button
+    document.getElementById("save-contact-btn").addEventListener("click", () => {
+      this.saveContact()
     })
 
-    // Contact search
-    document.getElementById("contact-search").addEventListener("input", (e) => {
-      this.filterContacts(e.target.value)
-    })
-
-    // Live sharing
-    document.getElementById("start-live-share").addEventListener("click", () => {
-      this.startLiveSharing()
-    })
-
-    // Close modal on outside click
-    this.shareModal.addEventListener("click", (e) => {
-      if (e.target === this.shareModal) {
-        this.closeShareModal()
-      }
-    })
-
-    this.addContactModal.addEventListener("click", (e) => {
-      if (e.target === this.addContactModal) {
-        this.closeAddContactModal()
-      }
+    // Close modal buttons
+    document.querySelectorAll(".close-modal-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        this.closeModal(e.target.closest(".modal"))
+      })
     })
   }
 
   openShareModal() {
-    this.updateShareLocationPreview()
-    this.shareModal.classList.add("show")
-    this.playVoiceAlert("فتح نافذة مشاركة الموقع")
-  }
+    if (!this.currentLocation) {
+      this.showToast("لم يتم تحديد موقعك بعد", "warning")
+      return
+    }
 
-  closeShareModal() {
-    this.shareModal.classList.remove("show")
+    this.populateContactsList()
+    this.shareModal.classList.add("show")
   }
 
   openAddContactModal() {
     this.addContactModal.classList.add("show")
-    document.getElementById("contact-name").focus()
   }
 
-  closeAddContactModal() {
-    document.getElementById("add-contact-form").reset()
-    this.addContactModal.classList.remove("show")
+  closeModal(modal) {
+    modal.classList.remove("show")
   }
 
-  switchShareTab(tabName) {
-    // Hide all tabs
-    document.querySelectorAll(".share-tab-content").forEach((tab) => {
-      tab.classList.remove("active")
-    })
+  sendShare() {
+    const selectedContacts = Array.from(document.querySelectorAll("#contacts-list input:checked")).map(
+      (checkbox) => checkbox.value,
+    )
 
-    document.querySelectorAll(".share-tab-btn").forEach((btn) => {
-      btn.classList.remove("active")
-    })
-
-    // Show selected tab
-    document.getElementById(`${tabName}-share-tab`).classList.add("active")
-    document.querySelector(`[data-tab="${tabName}"]`).classList.add("active")
-
-    // Update content based on tab
-    if (tabName === "contacts") {
-      this.updateContactsList()
-    } else if (tabName === "live") {
-      this.updateActiveShares()
-    }
-  }
-
-  updateShareLocationPreview() {
-    const locationName = document.getElementById("share-location-name")
-    const locationDetails = document.getElementById("share-location-details")
-
-    if (this.currentLocation) {
-      if (this.lastKnownAddress) {
-        locationName.textContent = this.lastKnownAddress
-      } else {
-        const nearest = this.findNearestZone(this.currentLocation)
-        if (nearest) {
-          locationName.textContent = `قرب ${nearest.name}`
-        } else {
-          locationName.textContent = "الموقع الحالي"
-        }
-      }
-
-      const coords = `${this.currentLocation.lat.toFixed(6)}, ${this.currentLocation.lng.toFixed(6)}`
-      const accuracy = `دقة: ${Math.round(this.currentLocation.accuracy)}م`
-      const timestamp = new Date().toLocaleTimeString("ar-JO")
-
-      locationDetails.textContent = `${coords} • ${accuracy} • ${timestamp}`
-
-      if (this.suggestedZone) {
-        locationDetails.textContent += ` • الوجهة: ${this.suggestedZone.name}`
-      }
-    } else {
-      locationName.textContent = "جاري تحديد الموقع..."
-      locationDetails.textContent = "يرجى انتظار تحديد الموقع"
-    }
-  }
-
-  generateLocationMessage() {
-    if (!this.currentLocation) {
-      return "لم يتم تحديد الموقع بعد"
-    }
-
-    let message = "📍 موقعي الحالي:\n"
-
-    if (this.lastKnownAddress) {
-      message += `${this.lastKnownAddress}\n`
-    } else {
-      const nearest = this.findNearestZone(this.currentLocation)
-      if (nearest) {
-        message += `قرب ${nearest.name}\n`
-      }
-    }
-
-    message += `الإحداثيات: ${this.currentLocation.lat.toFixed(6)}, ${this.currentLocation.lng.toFixed(6)}\n`
-    message += `الوقت: ${new Date().toLocaleString("ar-JO")}\n`
-
-    if (this.suggestedZone) {
-      message += `🎯 الوجهة المقترحة: ${this.suggestedZone.name}\n`
-    }
-
-    const googleMapsUrl = `https://maps.google.com/maps?q=${this.currentLocation.lat},${this.currentLocation.lng}`
-    message += `\n🗺️ عرض على الخريطة: ${googleMapsUrl}`
-
-    return message
-  }
-
-  shareViaWhatsApp() {
-    const message = this.generateLocationMessage()
-    const encodedMessage = encodeURIComponent(message)
-    const url = `https://wa.me/?text=${encodedMessage}`
-
-    window.open(url, "_blank")
-    this.logExecution("📱 Shared location via WhatsApp", "info")
-    this.playVoiceAlert("تم مشاركة الموقع عبر واتساب")
-    this.closeShareModal()
-  }
-
-  shareViaTelegram() {
-    const message = this.generateLocationMessage()
-    const encodedMessage = encodeURIComponent(message)
-    const url = `https://t.me/share/url?url=${encodedMessage}`
-
-    window.open(url, "_blank")
-    this.logExecution("📱 Shared location via Telegram", "info")
-    this.playVoiceAlert("تم مشاركة الموقع عبر تيليجرام")
-    this.closeShareModal()
-  }
-
-  shareViaSMS() {
-    const message = this.generateLocationMessage()
-    const encodedMessage = encodeURIComponent(message)
-    const url = `sms:?body=${encodedMessage}`
-
-    window.open(url, "_blank")
-    this.logExecution("📱 Shared location via SMS", "info")
-    this.playVoiceAlert("تم مشاركة الموقع عبر الرسائل النصية")
-    this.closeShareModal()
-  }
-
-  async copyLocationToClipboard() {
-    const message = this.generateLocationMessage()
-
-    try {
-      await navigator.clipboard.writeText(message)
-      this.showToast("تم نسخ معلومات الموقع", "success")
-      this.playVoiceAlert("تم نسخ معلومات الموقع")
-    } catch (error) {
-      // Fallback for older browsers
-      const textArea = document.createElement("textarea")
-      textArea.value = message
-      document.body.appendChild(textArea)
-      textArea.select()
-      document.execCommand("copy")
-      document.body.removeChild(textArea)
-
-      this.showToast("تم نسخ معلومات الموقع", "success")
-      this.playVoiceAlert("تم نسخ معلومات الموقع")
-    }
-
-    this.logExecution("📋 Copied location to clipboard", "info")
-    this.closeShareModal()
-  }
-
-  shareViaEmail() {
-    const message = this.generateLocationMessage()
-    const subject = "مشاركة الموقع - دليل السائق"
-    const encodedSubject = encodeURIComponent(subject)
-    const encodedMessage = encodeURIComponent(message)
-
-    const url = `mailto:?subject=${encodedSubject}&body=${encodedMessage}`
-    window.open(url, "_blank")
-
-    this.logExecution("📧 Shared location via email", "info")
-    this.playVoiceAlert("تم مشاركة الموقع عبر البريد الإلكتروني")
-    this.closeShareModal()
-  }
-
-  shareViaGoogleMaps() {
-    if (!this.currentLocation) {
-      this.showToast("لم يتم تحديد الموقع بعد", "warning")
+    if (selectedContacts.length === 0) {
+      this.showToast("الرجاء تحديد جهة اتصال واحدة على الأقل", "warning")
       return
     }
 
-    const url = `https://maps.google.com/maps?q=${this.currentLocation.lat},${this.currentLocation.lng}`
-    window.open(url, "_blank")
+    const shareMessage = `موقعي الحالي: ${this.currentLocation.lat}, ${this.currentLocation.lng}. العنوان: ${this.lastKnownAddress}`
 
-    this.logExecution("🗺️ Opened location in Google Maps", "info")
-    this.playVoiceAlert("تم فتح الموقع في خرائط جوجل")
-    this.closeShareModal()
+    selectedContacts.forEach((contact) => {
+      // Simulate sending the share
+      this.shareId++
+      this.activeShares.set(this.shareId, { contact, message: shareMessage, timestamp: Date.now() })
+      this.logExecution(`📤 Shared location with ${contact}`, "info")
+    })
+
+    this.showToast(`تم إرسال الموقع إلى ${selectedContacts.length} جهة اتصال`, "success")
+    this.closeModal(this.shareModal)
   }
 
-  saveNewContact() {
-    const name = document.getElementById("contact-name").value.trim()
-    const phone = document.getElementById("contact-phone").value.trim()
-    const type = document.getElementById("contact-type").value
+  saveContact() {
+    const contactName = document.getElementById("contact-name").value
+    const contactPhone = document.getElementById("contact-phone").value
 
-    if (!name || !phone) {
-      this.showToast("يرجى ملء جميع الحقول المطلوبة", "warning")
+    if (!contactName || !contactPhone) {
+      this.showToast("الرجاء إدخال الاسم ورقم الهاتف", "warning")
       return
     }
 
-    const contact = {
-      id: Date.now(),
-      name,
-      phone,
-      type,
-      avatar: name.charAt(0).toUpperCase(),
-    }
-
-    this.favoriteContacts.push(contact)
+    const newContact = { name: contactName, phone: contactPhone }
+    this.favoriteContacts.push(newContact)
     this.saveFavoriteContacts()
-    this.updateContactsList()
-    this.closeAddContactModal()
 
-    this.showToast(`تم إضافة ${name} إلى جهات الاتصال`, "success")
-    this.playVoiceAlert(`تم إضافة ${name} إلى جهات الاتصال`)
-    this.logExecution(`👤 Added new contact: ${name}`, "info")
+    this.showToast("تم حفظ جهة الاتصال", "success")
+    this.closeModal(this.addContactModal)
+    this.populateContactsList()
   }
 
-  updateContactsList() {
-    const container = document.getElementById("favorite-contacts")
-    container.innerHTML = ""
-
-    if (this.favoriteContacts.length === 0) {
-      container.innerHTML = `
-        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-          <div style="font-size: 3rem; margin-bottom: 1rem;">👥</div>
-          <p>لا توجد جهات اتصال محفوظة</p>
-          <p>أضف جهات اتصال للمشاركة السريعة</p>
-        </div>
-      `
-      return
-    }
+  populateContactsList() {
+    const contactsList = document.getElementById("contacts-list")
+    contactsList.innerHTML = ""
 
     this.favoriteContacts.forEach((contact) => {
-      const contactElement = this.createContactElement(contact)
-      container.appendChild(contactElement)
+      const li = document.createElement("li")
+      li.innerHTML = `
+        <label>
+          <input type="checkbox" value="${contact.name}">
+          ${contact.name} (${contact.phone})
+        </label>
+      `
+      contactsList.appendChild(li)
     })
-  }
-
-  createContactElement(contact) {
-    const element = document.createElement("div")
-    element.className = "contact-item"
-
-    element.innerHTML = `
-      <div class="contact-avatar">${contact.avatar}</div>
-      <div class="contact-info">
-        <div class="contact-name">${contact.name}</div>
-        <div class="contact-phone">${contact.phone}</div>
-      </div>
-      <div class="contact-type">${this.getContactTypeText(contact.type)}</div>
-    `
-
-    element.addEventListener("click", () => {
-      this.shareToContact(contact)
-    })
-
-    return element
-  }
-
-  getContactTypeText(type) {
-    const types = {
-      customer: "عميل",
-      family: "عائلة",
-      friend: "صديق",
-      work: "عمل",
-    }
-    return types[type] || type
-  }
-
-  shareToContact(contact) {
-    const message = this.generateLocationMessage()
-    const encodedMessage = encodeURIComponent(message)
-    const url = `https://wa.me/${contact.phone.replace(/\D/g, "")}?text=${encodedMessage}`
-
-    window.open(url, "_blank")
-    this.logExecution(`📱 Shared location to ${contact.name}`, "info")
-    this.playVoiceAlert(`تم مشاركة الموقع مع ${contact.name}`)
-    this.closeShareModal()
-  }
-
-  filterContacts(searchTerm) {
-    const contacts = document.querySelectorAll(".contact-item")
-    const term = searchTerm.toLowerCase()
-
-    contacts.forEach((contact) => {
-      const name = contact.querySelector(".contact-name").textContent.toLowerCase()
-      const phone = contact.querySelector(".contact-phone").textContent.toLowerCase()
-
-      if (name.includes(term) || phone.includes(term)) {
-        contact.style.display = "flex"
-      } else {
-        contact.style.display = "none"
-      }
-    })
-  }
-
-  startLiveSharing() {
-    if (!this.currentLocation) {
-      this.showToast("لم يتم تحديد الموقع بعد", "warning")
-      return
-    }
-
-    const duration = Number.parseInt(document.getElementById("share-duration").value)
-    const includeDestination = document.getElementById("include-destination").checked
-    const showRoute = document.getElementById("show-route").checked
-
-    const shareId = ++this.shareId
-    const endTime = new Date(Date.now() + duration * 60000)
-
-    const shareData = {
-      id: shareId,
-      startTime: new Date(),
-      endTime: endTime,
-      duration: duration,
-      includeDestination,
-      showRoute,
-      active: true,
-    }
-
-    this.activeShares.set(shareId, shareData)
-
-    // Generate sharing URL
-    const shareUrl = this.generateLiveShareUrl(shareData)
-
-    // Copy URL to clipboard
-    navigator.clipboard.writeText(shareUrl).then(() => {
-      this.showToast("تم نسخ رابط التتبع المباشر", "success")
-      this.playVoiceAlert("تم بدء المشاركة المباشرة ونسخ الرابط")
-    })
-
-    this.updateActiveShares()
-    this.logExecution(`🔴 Started live sharing for ${duration} minutes`, "info")
-
-    // Set timer to stop sharing
-    setTimeout(() => {
-      this.stopLiveSharing(shareId)
-    }, duration * 60000)
-  }
-
-  generateLiveShareUrl(shareData) {
-    const baseUrl = window.location.origin + window.location.pathname
-    const params = new URLSearchParams({
-      track: shareData.id,
-      expires: shareData.endTime.getTime(),
-    })
-
-    return `${baseUrl}?${params.toString()}`
-  }
-
-  stopLiveSharing(shareId) {
-    const shareData = this.activeShares.get(shareId)
-    if (shareData) {
-      shareData.active = false
-      this.activeShares.delete(shareId)
-      this.updateActiveShares()
-      this.playVoiceAlert("تم إيقاف المشاركة المباشرة")
-      this.logExecution(`⏹️ Stopped live sharing ${shareId}`, "info")
-    }
-  }
-
-  updateActiveShares() {
-    const container = document.getElementById("active-shares")
-    container.innerHTML = ""
-
-    if (this.activeShares.size === 0) {
-      return
-    }
-
-    const title = document.createElement("h4")
-    title.textContent = "المشاركات النشطة"
-    title.style.marginBottom = "var(--spacing-md)"
-    container.appendChild(title)
-
-    this.activeShares.forEach((shareData, shareId) => {
-      const shareElement = this.createActiveShareElement(shareData)
-      container.appendChild(shareElement)
-    })
-  }
-
-  createActiveShareElement(shareData) {
-    const element = document.createElement("div")
-    element.className = "active-share-item"
-
-    const timeRemaining = Math.max(0, Math.floor((shareData.endTime - new Date()) / 60000))
-
-    element.innerHTML = `
-      <div class="share-status">
-        <div class="status-indicator"></div>
-        <div class="share-info">
-          <div class="share-recipient">مشاركة مباشرة #${shareData.id}</div>
-          <div class="share-time">متبقي: ${timeRemaining} دقيقة</div>
-        </div>
-      </div>
-      <button class="stop-share-btn" onclick="window.driverGuide.stopLiveSharing(${shareData.id})">
-        إيقاف
-      </button>
-    `
-
-    return element
   }
 
   loadFavoriteContacts() {
-    const saved = localStorage.getItem("driverFavoriteContacts")
-    if (saved) {
-      try {
-        this.favoriteContacts = JSON.parse(saved)
-      } catch (error) {
-        this.logExecution("⚠️ Failed to load contacts", "warning")
-        this.favoriteContacts = []
-      }
+    const savedContacts = localStorage.getItem("favoriteContacts")
+    if (savedContacts) {
+      this.favoriteContacts = JSON.parse(savedContacts)
     }
   }
 
   saveFavoriteContacts() {
-    localStorage.setItem("driverFavoriteContacts", JSON.stringify(this.favoriteContacts))
+    localStorage.setItem("favoriteContacts", JSON.stringify(this.favoriteContacts))
+  }
+
+  loadUserPreferences() {
+    const preferences = localStorage.getItem("driverPreferences")
+    if (preferences) {
+      const prefs = JSON.parse(preferences)
+      this.voiceEnabled = prefs.voiceEnabled !== undefined ? prefs.voiceEnabled : this.voiceEnabled
+      this.voiceVolume = prefs.voiceVolume !== undefined ? prefs.voiceVolume : this.voiceVolume
+      this.voiceLanguage = prefs.voiceLanguage !== undefined ? prefs.voiceLanguage : this.voiceLanguage
+      this.safetyMode = prefs.safetyMode !== undefined ? prefs.safetyMode : this.safetyMode
+      this.autoRefresh = prefs.autoRefresh !== undefined ? prefs.autoRefresh : this.autoRefresh
+      this.currentMapStyle = prefs.currentMapStyle !== undefined ? prefs.currentMapStyle : this.currentMapStyle
+      this.viewMode = prefs.viewMode !== undefined ? prefs.viewMode : this.viewMode
+      this.autoSwitchToText = prefs.autoSwitchToText !== undefined ? prefs.autoSwitchToText : this.autoSwitchToText
+      this.textModeSpeed = prefs.textModeSpeed !== undefined ? prefs.textModeSpeed : this.textModeSpeed
+      this.enhancedVoiceInTextMode =
+        prefs.enhancedVoiceInTextMode !== undefined ? prefs.enhancedVoiceInTextMode : this.enhancedVoiceInTextMode
+    }
+  }
+
+  saveUserPreferences() {
+    const preferences = {
+      voiceEnabled: this.voiceEnabled,
+      voiceVolume: this.voiceVolume,
+      voiceLanguage: this.voiceLanguage,
+      safetyMode: this.safetyMode,
+      autoRefresh: this.autoRefresh,
+      currentMapStyle: this.currentMapStyle,
+      viewMode: this.viewMode,
+      autoSwitchToText: this.autoSwitchToText,
+      textModeSpeed: this.textModeSpeed,
+      enhancedVoiceInTextMode: this.enhancedVoiceInTextMode,
+    }
+    localStorage.setItem("driverPreferences", JSON.stringify(preferences))
+  }
+
+  showLoadingOverlay(message) {
+    const loadingOverlay = document.getElementById("loading-overlay")
+    const loadingMessage = document.getElementById("loading-message")
+
+    loadingMessage.textContent = message
+    loadingOverlay.classList.add("show")
+
+    // Set a timeout to handle loading failures
+    this.loadingTimeout = setTimeout(() => {
+      this.handleLoadingTimeout()
+    }, 30000) // 30 seconds
+  }
+
+  hideLoadingOverlay() {
+    const loadingOverlay = document.getElementById("loading-overlay")
+    loadingOverlay.classList.remove("show")
+    clearTimeout(this.loadingTimeout)
+  }
+
+  showToast(message, type = "info") {
+    const toastContainer = document.getElementById("toast-container")
+    const toast = document.createElement("div")
+    toast.className = `toast ${type}`
+    toast.textContent = message
+
+    toastContainer.appendChild(toast)
+
+    setTimeout(() => {
+      toast.remove()
+    }, 5000)
+  }
+
+  updateDebugInfo(key, value) {
+    if (!this.debugMode) return
+
+    const element = document.getElementById(`debug-${key}`)
+    if (element) {
+      element.textContent = value
+    }
+  }
+
+  updateDebugState(key, value) {
+    if (!this.debugMode) return
+
+    const element = document.getElementById(`debug-${key}`)
+    if (element) {
+      element.textContent = value
+    }
+  }
+
+  logExecution(message, level = "info") {
+    const timestamp = new Date().toLocaleTimeString()
+    const logEntry = `[${timestamp}] ${level.toUpperCase()}: ${message}`
+    this.executionLog.push(logEntry)
+
+    console.log(logEntry)
+
+    if (this.debugMode) {
+      const logContainer = document.getElementById("debug-log")
+      const logItem = document.createElement("div")
+      logItem.textContent = logEntry
+      logContainer.appendChild(logItem)
+      logContainer.scrollTop = logContainer.scrollHeight
+    }
+  }
+
+  testVoiceSystem() {
+    this.playVoiceAlert("هذا اختبار للنظام الصوتي")
+  }
+
+  forceReload() {
+    location.reload()
+  }
+
+  exportLogs() {
+    const logContent = this.executionLog.join("\n")
+    const blob = new Blob([logContent], { type: "text/plain" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "execution_log.txt"
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  haversineDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3 // Earth radius in meters
+    const φ1 = (lat1 * Math.PI) / 180 // φ, λ in radians
+    const φ2 = (lat2 * Math.PI) / 180
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+    const d = R * c
+
+    return d
   }
 }
 
-// Initialize the driver application
+// Initialize the application
 document.addEventListener("DOMContentLoaded", () => {
-  window.driverGuide = new AmmanDriverGuide()
-  window.driverGuide.init()
+  const app = new AmmanDriverGuide()
+  window.driverApp = app // Make it globally accessible for debugging
+  app.init()
 })
-
-// Auto-update every 30 seconds for drivers
-setInterval(() => {
-  if (window.driverGuide && window.driverGuide.isInitialized) {
-    window.driverGuide.updateDemandMode()
-    if (window.driverGuide.autoRefresh) {
-      window.driverGuide.refreshSuggestion()
-    }
-  }
-}, 30000)

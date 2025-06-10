@@ -122,6 +122,10 @@ class AmmanDriverGuide {
     this.navigationUpdateInterval = null
     this.recalculationThreshold = 50 // meters
 
+    // Bootstrap components
+    this.toastInstance = null
+    this.tooltips = []
+
     this.logExecution("🚗 Driver-optimized system initialized", "info")
     this.initializeAudioSystem()
     this.checkBrowserCompatibility()
@@ -247,10 +251,12 @@ class AmmanDriverGuide {
     const alertContainer = document.getElementById("voice-alerts")
     if (alertContainer) {
       alertContainer.textContent = message
+      alertContainer.classList.remove("d-none")
       alertContainer.classList.add("show")
 
       setTimeout(() => {
         alertContainer.classList.remove("show")
+        alertContainer.classList.add("d-none")
       }, 3000)
     }
   }
@@ -305,6 +311,9 @@ class AmmanDriverGuide {
       this.showLoadingOverlay("جاري تحميل التطبيق...")
       this.logExecution("🚗 Starting driver-optimized initialization...", "info")
 
+      // Initialize Bootstrap components
+      this.initializeBootstrapComponents()
+
       // Load user preferences
       this.loadUserPreferences()
 
@@ -335,6 +344,23 @@ class AmmanDriverGuide {
       this.hideLoadingOverlay()
       this.showToast("خطأ في تحميل التطبيق", "error")
     }
+  }
+
+  initializeBootstrapComponents() {
+    // Initialize tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    this.tooltips = tooltipTriggerList.map((tooltipTriggerEl) => new bootstrap.Tooltip(tooltipTriggerEl))
+
+    // Initialize toast
+    const toastElement = document.getElementById("toast")
+    if (toastElement) {
+      this.toastInstance = new bootstrap.Toast(toastElement, {
+        autohide: true,
+        delay: 4000,
+      })
+    }
+
+    this.logExecution("✅ Bootstrap components initialized", "success")
   }
 
   async loadZones() {
@@ -565,12 +591,64 @@ class AmmanDriverGuide {
       })
     }
 
-    // Tab navigation
-    document.querySelectorAll(".tab-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        this.switchTab(e.target.dataset.tab)
+    const safetyMode = document.getElementById("safety-mode")
+    if (safetyMode) {
+      safetyMode.addEventListener("click", (e) => {
+        this.toggleSafetyMode(e.target)
       })
-    })
+    }
+
+    // Settings event listeners
+    const voiceEnabled = document.getElementById("voice-enabled")
+    if (voiceEnabled) {
+      voiceEnabled.addEventListener("change", (e) => {
+        this.voiceEnabled = e.target.checked
+        this.updateVoiceButton()
+      })
+    }
+
+    const voiceVolume = document.getElementById("voice-volume")
+    if (voiceVolume) {
+      voiceVolume.addEventListener("input", (e) => {
+        this.voiceVolume = e.target.value / 100
+      })
+    }
+
+    const mapStyleSetting = document.getElementById("map-style-setting")
+    if (mapStyleSetting) {
+      mapStyleSetting.addEventListener("change", (e) => {
+        this.changeMapStyle(e.target.value)
+      })
+    }
+
+    const zoneSort = document.getElementById("zone-sort")
+    if (zoneSort) {
+      zoneSort.addEventListener("change", (e) => {
+        this.sortZones(e.target.value)
+      })
+    }
+
+    // Debug actions
+    const testVoice = document.getElementById("test-voice")
+    if (testVoice) {
+      testVoice.addEventListener("click", () => {
+        this.testVoiceSystem()
+      })
+    }
+
+    const forceReload = document.getElementById("force-reload")
+    if (forceReload) {
+      forceReload.addEventListener("click", () => {
+        this.forceReload()
+      })
+    }
+
+    const exportLogs = document.getElementById("export-logs")
+    if (exportLogs) {
+      exportLogs.addEventListener("click", () => {
+        this.exportLogs()
+      })
+    }
 
     // Setup view toggle
     this.setupViewToggle()
@@ -582,12 +660,6 @@ class AmmanDriverGuide {
   }
 
   setupDriverInterface() {
-    // Initialize tabs
-    this.switchTab("zones")
-
-    // Set initial settings
-    this.updateVoiceButton()
-
     // Start auto-refresh if enabled
     if (this.autoRefresh) {
       setInterval(() => {
@@ -659,12 +731,19 @@ class AmmanDriverGuide {
   updateVoiceButton() {
     const btn = document.getElementById("voice-toggle")
     if (btn) {
+      const icon = btn.querySelector("i")
       if (this.voiceEnabled) {
-        btn.classList.remove("muted")
-        btn.textContent = "🔊"
+        btn.classList.remove("btn-outline-secondary")
+        btn.classList.add("btn-outline-success")
+        if (icon) {
+          icon.className = "bi bi-volume-up"
+        }
       } else {
-        btn.classList.add("muted")
-        btn.textContent = "🔇"
+        btn.classList.remove("btn-outline-success")
+        btn.classList.add("btn-outline-secondary")
+        if (icon) {
+          icon.className = "bi bi-volume-mute"
+        }
       }
     }
   }
@@ -706,6 +785,7 @@ class AmmanDriverGuide {
     }
 
     if (this.navigationPanel) {
+      this.navigationPanel.classList.remove("d-none")
       this.navigationPanel.classList.add("active")
     }
 
@@ -887,6 +967,7 @@ class AmmanDriverGuide {
     const progressBar = document.getElementById("navigation-progress-bar")
     if (progressBar) {
       progressBar.style.width = "0%"
+      progressBar.setAttribute("aria-valuenow", "0")
     }
 
     const progressText = document.getElementById("navigation-progress-text")
@@ -955,6 +1036,7 @@ class AmmanDriverGuide {
     const progressBar = document.getElementById("navigation-progress-bar")
     if (progressBar) {
       progressBar.style.width = `${progressPercent}%`
+      progressBar.setAttribute("aria-valuenow", progressPercent.toString())
     }
 
     const progressText = document.getElementById("navigation-progress-text")
@@ -1000,6 +1082,7 @@ class AmmanDriverGuide {
 
     if (this.navigationPanel) {
       this.navigationPanel.classList.remove("active")
+      this.navigationPanel.classList.add("d-none")
     }
 
     const mapElement = document.getElementById("map")
@@ -1037,6 +1120,24 @@ class AmmanDriverGuide {
     this.navigationVoiceEnabled = !this.navigationVoiceEnabled
     const message = this.navigationVoiceEnabled ? "تم تفعيل التوجيه الصوتي" : "تم إيقاف التوجيه الصوتي"
     this.showToast(message, "info")
+
+    const btn = document.getElementById("toggle-voice-nav")
+    if (btn) {
+      const icon = btn.querySelector("i")
+      if (this.navigationVoiceEnabled) {
+        btn.classList.remove("btn-outline-secondary")
+        btn.classList.add("btn-outline-success")
+        if (icon) {
+          icon.className = "bi bi-volume-up"
+        }
+      } else {
+        btn.classList.remove("btn-outline-success")
+        btn.classList.add("btn-outline-secondary")
+        if (icon) {
+          icon.className = "bi bi-volume-mute"
+        }
+      }
+    }
   }
 
   toggleRouteOverview() {
@@ -1062,11 +1163,12 @@ class AmmanDriverGuide {
   updateNavigationState(isNavigating) {
     const navigateBtn = document.getElementById("navigate-btn")
     if (navigateBtn) {
+      const icon = navigateBtn.querySelector("i")
       if (isNavigating) {
-        navigateBtn.textContent = "🧭 جاري التنقل..."
+        navigateBtn.innerHTML = '<i class="bi bi-navigation me-2"></i>جاري التنقل...'
         navigateBtn.classList.add("navigating")
       } else {
-        navigateBtn.textContent = "🧭 توجه الآن"
+        navigateBtn.innerHTML = '<i class="bi bi-navigation me-2"></i>توجه الآن'
         navigateBtn.classList.remove("navigating")
       }
     }
@@ -1098,6 +1200,14 @@ class AmmanDriverGuide {
     this.highDemandOnly = !this.highDemandOnly
     button.classList.toggle("active", this.highDemandOnly)
 
+    if (this.highDemandOnly) {
+      button.classList.remove("btn-outline-warning")
+      button.classList.add("btn-warning")
+    } else {
+      button.classList.remove("btn-warning")
+      button.classList.add("btn-outline-warning")
+    }
+
     this.updateZoneMarkers()
     this.updateZonesList()
 
@@ -1105,29 +1215,26 @@ class AmmanDriverGuide {
     this.showToast(message, "info")
   }
 
-  switchTab(tabName) {
-    document.querySelectorAll(".tab-content").forEach((tab) => {
-      tab.classList.remove("active")
-    })
+  toggleSafetyMode(button) {
+    this.safetyMode = !this.safetyMode
+    button.classList.toggle("active", this.safetyMode)
 
-    document.querySelectorAll(".tab-btn").forEach((btn) => {
-      btn.classList.remove("active")
-    })
-
-    const tabContent = document.getElementById(`${tabName}-tab`)
-    if (tabContent) {
-      tabContent.classList.add("active")
+    if (this.safetyMode) {
+      button.classList.remove("btn-outline-success")
+      button.classList.add("btn-success")
+      document.body.classList.add("safety-mode")
+    } else {
+      button.classList.remove("btn-success")
+      button.classList.add("btn-outline-success")
+      document.body.classList.remove("safety-mode")
     }
 
-    const tabBtn = document.querySelector(`[data-tab="${tabName}"]`)
-    if (tabBtn) {
-      tabBtn.classList.add("active")
-    }
-
-    this.currentTab = tabName
+    const message = this.safetyMode ? "تم تفعيل وضع الأمان" : "تم إيقاف وضع الأمان"
+    this.showToast(message, "info")
+    this.playVoiceAlert(message)
   }
 
-  selectZone(zone) {
+  selectZone() {
     this.suggestedZone = zone
     this.updateSuggestedZoneDisplay()
 
@@ -1161,6 +1268,17 @@ class AmmanDriverGuide {
     const demandLevel = document.getElementById("demand-level")
     if (demandLevel) {
       demandLevel.textContent = density
+
+      // Update badge color based on demand level
+      demandLevel.className = "badge rounded-pill fs-6"
+      const level = this.getDemandLevel(density)
+      if (level === "high") {
+        demandLevel.classList.add("bg-success")
+      } else if (level === "medium") {
+        demandLevel.classList.add("bg-warning")
+      } else {
+        demandLevel.classList.add("bg-danger")
+      }
     }
 
     if (this.currentLocation) {
@@ -1430,7 +1548,7 @@ class AmmanDriverGuide {
     const demandText = this.getDemandText(demandLevel)
 
     const card = document.createElement("div")
-    card.className = `zone-card ${demandLevel}-demand`
+    card.className = "col-12"
 
     let distanceText = ""
     if (this.currentLocation) {
@@ -1440,17 +1558,25 @@ class AmmanDriverGuide {
       distanceText = distance < 1 ? `${Math.round(distance * 1000)} م` : `${distance.toFixed(1)} كم`
     }
 
+    let badgeClass = "bg-danger"
+    if (demandLevel === "high") badgeClass = "bg-success"
+    else if (demandLevel === "medium") badgeClass = "bg-warning"
+
     card.innerHTML = `
-    <div class="zone-card-header">
-      <div class="zone-name">${zone.name}</div>
-      <div class="zone-demand-badge ${demandLevel}">${demandText}</div>
-    </div>
-    <div class="zone-info">
-      <span>الطلب: ${density}</span>
-      <span>${distanceText}</span>
-    </div>
-    ${zone.safety_rating ? `<div class="zone-safety">الأمان: ${zone.safety_rating}/10</div>` : ""}
-  `
+      <div class="card zone-card h-100">
+        <div class="card-body">
+          <div class="zone-card-header">
+            <h6 class="zone-name card-title mb-1">${zone.name}</h6>
+            <span class="badge ${badgeClass} zone-demand-badge">${demandText}</span>
+          </div>
+          <div class="zone-info">
+            <small class="text-muted">الطلب: ${density}</small>
+            <small class="text-muted">${distanceText}</small>
+          </div>
+          ${zone.safety_rating ? `<div class="zone-safety mt-1"><small class="text-success">الأمان: ${zone.safety_rating}/10</small></div>` : ""}
+        </div>
+      </div>
+    `
 
     card.addEventListener("click", () => {
       this.selectZone(zone)
@@ -1608,6 +1734,26 @@ class AmmanDriverGuide {
     return R * c
   }
 
+  changeMapStyle(style) {
+    this.currentMapStyle = style
+    if (this.map) {
+      this.map.setStyle(this.mapStyles[style])
+      this.map.once("styledata", () => {
+        this.setupMapSources()
+        this.updateZoneMarkers()
+        this.updateCurrentLocationOnMap()
+      })
+    }
+  }
+
+  sortZones(criteria) {
+    this.updateZonesList()
+  }
+
+  testVoiceSystem() {
+    this.playVoiceAlert("اختبار النظام الصوتي. النظام يعمل بشكل صحيح")
+  }
+
   setupViewToggle() {
     const viewToggleBtn = document.getElementById("view-toggle")
     if (viewToggleBtn) {
@@ -1631,21 +1777,32 @@ class AmmanDriverGuide {
   updateViewMode() {
     const container = document.querySelector(".driver-container")
     const map = document.getElementById("map")
+    const locationCard = document.querySelector(".location-display-card")
     const viewToggleBtn = document.getElementById("view-toggle")
 
     if (this.viewMode === "text") {
       if (container) container.classList.add("text-only-mode")
       if (map) map.classList.add("minimized")
+      if (locationCard) {
+        locationCard.classList.remove("d-none")
+        locationCard.classList.add("active")
+      }
       if (viewToggleBtn) {
+        const icon = viewToggleBtn.querySelector("i")
+        if (icon) icon.className = "bi bi-phone"
         viewToggleBtn.classList.add("text-mode")
-        viewToggleBtn.textContent = "📱"
       }
     } else {
       if (container) container.classList.remove("text-only-mode")
       if (map) map.classList.remove("minimized")
+      if (locationCard) {
+        locationCard.classList.add("d-none")
+        locationCard.classList.remove("active")
+      }
       if (viewToggleBtn) {
+        const icon = viewToggleBtn.querySelector("i")
+        if (icon) icon.className = "bi bi-map"
         viewToggleBtn.classList.remove("text-mode")
-        viewToggleBtn.textContent = "🗺️"
       }
     }
 
@@ -1664,8 +1821,57 @@ class AmmanDriverGuide {
   }
 
   setupShareSystem() {
-    // Placeholder for share system setup
-    this.logExecution("📱 Share system placeholder", "info")
+    // Setup share button event listeners
+    const shareButtons = ["share-whatsapp", "share-telegram", "share-sms", "share-copy", "share-email", "share-maps"]
+
+    shareButtons.forEach((buttonId) => {
+      const button = document.getElementById(buttonId)
+      if (button) {
+        button.addEventListener("click", () => {
+          this.handleShareAction(buttonId)
+        })
+      }
+    })
+
+    this.logExecution("📱 Share system initialized", "info")
+  }
+
+  handleShareAction(action) {
+    if (!this.currentLocation) {
+      this.showToast("لا يمكن مشاركة الموقع. الموقع غير محدد", "warning")
+      return
+    }
+
+    const locationText = `موقعي الحالي: https://maps.google.com/maps?q=${this.currentLocation.lat},${this.currentLocation.lng}`
+
+    switch (action) {
+      case "share-whatsapp":
+        window.open(`https://wa.me/?text=${encodeURIComponent(locationText)}`, "_blank")
+        break
+      case "share-telegram":
+        window.open(`https://t.me/share/url?url=${encodeURIComponent(locationText)}`, "_blank")
+        break
+      case "share-sms":
+        window.open(`sms:?body=${encodeURIComponent(locationText)}`, "_blank")
+        break
+      case "share-copy":
+        navigator.clipboard.writeText(locationText).then(() => {
+          this.showToast("تم نسخ الرابط", "success")
+        })
+        break
+      case "share-email":
+        window.open(`mailto:?subject=موقعي الحالي&body=${encodeURIComponent(locationText)}`, "_blank")
+        break
+      case "share-maps":
+        window.open(`https://maps.google.com/maps?q=${this.currentLocation.lat},${this.currentLocation.lng}`, "_blank")
+        break
+    }
+
+    // Close modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById("shareModal"))
+    if (modal) {
+      modal.hide()
+    }
   }
 
   updateDebugInfo(key, value) {
@@ -1680,27 +1886,70 @@ class AmmanDriverGuide {
     if (overlay) {
       const text = overlay.querySelector(".loading-text")
       if (text) text.textContent = message
-      overlay.style.display = "flex"
+      overlay.classList.remove("d-none")
     }
   }
 
   hideLoadingOverlay() {
     const overlay = document.getElementById("loading-overlay")
     if (overlay) {
-      overlay.style.display = "none"
+      overlay.classList.add("d-none")
     }
   }
 
   showToast(message, type = "info") {
     const toast = document.getElementById("toast")
-    if (toast) {
-      toast.textContent = message
-      toast.className = `toast ${type} show`
+    if (toast && this.toastInstance) {
+      const toastBody = toast.querySelector(".toast-body")
+      const toastHeader = toast.querySelector(".toast-header")
 
-      setTimeout(() => {
-        toast.classList.remove("show")
-      }, 4000)
+      if (toastBody) {
+        toastBody.textContent = message
+      }
+
+      // Update icon based on type
+      const icon = toastHeader?.querySelector("i")
+      if (icon) {
+        icon.className = `bi me-2`
+        switch (type) {
+          case "success":
+            icon.classList.add("bi-check-circle-fill", "text-success")
+            break
+          case "error":
+            icon.classList.add("bi-exclamation-triangle-fill", "text-danger")
+            break
+          case "warning":
+            icon.classList.add("bi-exclamation-triangle-fill", "text-warning")
+            break
+          default:
+            icon.classList.add("bi-info-circle-fill", "text-primary")
+        }
+      }
+
+      // Add type class to toast
+      toast.className = `toast ${type}`
+
+      this.toastInstance.show()
     }
+  }
+
+  forceReload() {
+    this.logExecution("🔄 Force reloading driver application...", "info")
+    location.reload()
+  }
+
+  exportLogs() {
+    const logs = this.executionLog
+      .map((log) => `[${log.timestamp}] ${log.type.toUpperCase()}: ${log.message}`)
+      .join("\n")
+
+    const blob = new Blob([logs], { type: "text/plain" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `driver-logs-${new Date().toISOString().split("T")[0]}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   logExecution(message, type = "info") {

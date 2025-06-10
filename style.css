@@ -1048,6 +1048,266 @@ body {
   outline-offset: 2px;
 }
 
+/* Navigation Panel */
+.navigation-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--card-bg);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.2);
+  padding: var(--spacing-md);
+  z-index: 200;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.navigation-panel.active {
+  transform: translateY(0);
+}
+
+.navigation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.navigation-header h3 {
+  font-size: var(--driver-font-xl);
+  color: var(--text-primary);
+  margin: 0;
+  text-align: center;
+  flex: 1;
+}
+
+.close-nav-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.close-nav-btn:hover {
+  background: var(--error);
+}
+
+.navigation-info {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--spacing-sm) 0;
+}
+
+.nav-info-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.nav-info-icon {
+  font-size: 1.5rem;
+}
+
+.nav-info-text {
+  font-size: var(--driver-font-large);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.navigation-instruction {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: rgba(67, 97, 238, 0.1);
+  border-radius: var(--radius-md);
+  border: 2px solid rgba(67, 97, 238, 0.2);
+}
+
+.instruction-icon {
+  font-size: 2.5rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.instruction-text {
+  font-size: var(--driver-font-xl);
+  font-weight: 600;
+  color: var(--primary);
+  flex: 1;
+}
+
+.navigation-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.progress-bar {
+  height: 8px;
+  background: var(--background);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: var(--radius-sm);
+  transition: width 0.3s ease;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.navigation-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-sm);
+}
+
+.nav-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.nav-action-btn:hover {
+  background: var(--background);
+  transform: translateY(-2px);
+}
+
+.nav-action-btn.danger {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.nav-action-btn.danger:hover {
+  background: rgba(244, 67, 54, 0.1);
+}
+
+.nav-btn-icon {
+  font-size: 1.5rem;
+}
+
+.nav-btn-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.next-turns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.next-turns h4 {
+  font-size: var(--driver-font-large);
+  color: var(--text-primary);
+  margin: 0;
+  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.turns-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.turn-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--background);
+}
+
+.turn-icon {
+  font-size: 1.5rem;
+  color: var(--primary);
+}
+
+.turn-text {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.turn-distance {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Route line styles */
+.maplibregl-canvas-container {
+  position: relative;
+}
+
+.route-marker {
+  width: 24px;
+  height: 24px;
+  background-color: var(--primary);
+  border: 3px solid white;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.route-marker.destination {
+  background-color: var(--success);
+}
+
+/* When navigation is active, adjust the map container */
+.driver-map.navigation-active {
+  padding-bottom: 200px; /* Make room for the navigation panel */
+}
+
+/* Maneuver icons for different turn types */
+.maneuver-icon {
+  width: 40px;
+  height: 40px;
+  background-color: var(--primary);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   :root {

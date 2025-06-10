@@ -112,6 +112,64 @@
         <!-- Map Container -->
         <div id="map" class="driver-map" aria-label="خريطة المناطق" role="application"></div>
 
+        <!-- Navigation Panel -->
+        <div id="navigation-panel" class="navigation-panel">
+            <div class="navigation-header">
+                <button id="close-navigation" class="close-nav-btn" aria-label="إغلاق التنقل">✕</button>
+                <h3>التنقل إلى <span id="navigation-destination">الوجهة</span></h3>
+            </div>
+            <div class="navigation-info">
+                <div class="nav-info-item">
+                    <span class="nav-info-icon">⏱️</span>
+                    <span id="navigation-eta" class="nav-info-text">-- دقيقة</span>
+                </div>
+                <div class="nav-info-item">
+                    <span class="nav-info-icon">📏</span>
+                    <span id="navigation-distance" class="nav-info-text">-- كم</span>
+                </div>
+                <div class="nav-info-item">
+                    <span class="nav-info-icon">🛣️</span>
+                    <span id="navigation-traffic" class="nav-info-text">حركة مرور عادية</span>
+                </div>
+            </div>
+            <div class="navigation-instruction">
+                <div id="instruction-icon" class="instruction-icon">➡️</div>
+                <div id="instruction-text" class="instruction-text">جاري حساب المسار...</div>
+            </div>
+            <div class="navigation-progress">
+                <div class="progress-bar">
+                    <div id="navigation-progress-bar" class="progress-fill" style="width: 0%"></div>
+                </div>
+                <div class="progress-info">
+                    <span id="navigation-progress-text">0% مكتمل</span>
+                </div>
+            </div>
+            <div class="navigation-actions">
+                <button id="recalculate-route" class="nav-action-btn">
+                    <span class="nav-btn-icon">🔄</span>
+                    <span class="nav-btn-text">إعادة حساب</span>
+                </button>
+                <button id="toggle-voice-nav" class="nav-action-btn">
+                    <span class="nav-btn-icon">🔊</span>
+                    <span class="nav-btn-text">الصوت</span>
+                </button>
+                <button id="show-overview" class="nav-action-btn">
+                    <span class="nav-btn-icon">🗺️</span>
+                    <span class="nav-btn-text">نظرة عامة</span>
+                </button>
+                <button id="end-navigation" class="nav-action-btn danger">
+                    <span class="nav-btn-icon">⏹️</span>
+                    <span class="nav-btn-text">إنهاء</span>
+                </button>
+            </div>
+            <div class="next-turns">
+                <h4>المنعطفات القادمة</h4>
+                <div id="turns-list" class="turns-list">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </div>
+        </div>
+
         <!-- Bottom Panel -->
         <div class="bottom-panel">
             <div class="panel-tabs">
